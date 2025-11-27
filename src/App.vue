@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import Binder from './components/Binder/Binder.vue';
 import Editor from './components/Editor/Editor.vue';
 import Inspector from './components/Inspector/Inspector.vue';
@@ -15,11 +15,15 @@ const toggleView = (mode: 'editor' | 'corkboard') => {
   viewMode.value = mode;
 };
 
-// Automatically switch to corkboard if a folder is selected?
-// Or just let user decide. 
-// Scrivener default: Folder -> Corkboard, File -> Editor.
-// Let's implement that auto-switch logic but allow manual override?
-// For now, manual toggle is safer and simpler.
+watch(activeNode, (newNode) => {
+  if (newNode) {
+    if (newNode.isFolder) {
+      viewMode.value = 'corkboard';
+    } else {
+      viewMode.value = 'editor';
+    }
+  }
+});
 </script>
 
 <template>
@@ -42,6 +46,7 @@ const toggleView = (mode: 'editor' | 'corkboard') => {
             :class="{ active: viewMode === 'corkboard' }" 
             @click="toggleView('corkboard')"
             title="Corkboard View"
+            :disabled="!activeNode?.isFolder"
           >
             🗂️
           </button>
