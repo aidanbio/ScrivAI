@@ -62,10 +62,21 @@ const startResize = (e: MouseEvent) => {
       <span class="card-status" :class="node.status.toLowerCase()">{{ node.status }}</span>
     </div>
     <div class="card-body">
-      <div v-if="node.synopsisImage" class="card-image">
-        <img :src="node.synopsisImage" alt="Synopsis Image" />
-      </div>
-      <p>{{ node.synopsis || 'No synopsis...' }}</p>
+      <!-- Case 2 & 3: Image exists -->
+      <template v-if="node.synopsisImage">
+        <div class="card-image full-height">
+          <img :src="node.synopsisImage" alt="Synopsis Image" />
+        </div>
+        <!-- Case 3: Image + Text (Overlay) -->
+        <div v-if="node.synopsis" class="card-overlay">
+          <p>{{ node.synopsis }}</p>
+        </div>
+      </template>
+      
+      <!-- Case 1: Text Only -->
+      <template v-else>
+        <p>{{ node.synopsis || 'No synopsis...' }}</p>
+      </template>
     </div>
     <div class="resize-handle" @mousedown="startResize"></div>
   </div>
@@ -138,6 +149,7 @@ const startResize = (e: MouseEvent) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  position: relative; /* For overlay positioning */
 }
 
 .card-image {
@@ -150,6 +162,11 @@ const startResize = (e: MouseEvent) => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.card-image.full-height {
+  height: 100%;
+  flex-grow: 1;
 }
 
 .card-image img {
@@ -165,6 +182,36 @@ const startResize = (e: MouseEvent) => {
   line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 10px;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 0.2s;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.index-card:hover .card-overlay {
+  opacity: 1;
+}
+
+.card-overlay p {
+  color: white;
+  -webkit-line-clamp: unset; /* Show full text in overlay */
+  line-clamp: unset;
+  overflow: visible;
 }
 
 .resize-handle {
