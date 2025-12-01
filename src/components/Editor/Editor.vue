@@ -77,6 +77,10 @@ onBeforeUnmount(() => {
         <option value="Georgia">Georgia</option>
         <option value="Times New Roman">Times New Roman</option>
         <option value="Courier New">Courier New</option>
+        <option value="Noto Sans KR">Noto Sans KR</option>
+        <option value="Gulim">굴림 (Gulim)</option>
+        <option value="Batang">바탕 (Batang)</option>
+        <option value="Gungsuh">궁서 (Gungsuh)</option>
       </select>
 
       <!-- Font Size -->
@@ -205,6 +209,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
+
 .editor-container {
   display: flex;
   flex-direction: column;

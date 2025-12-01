@@ -173,6 +173,28 @@ export const useDocumentStore = defineStore('document', () => {
     insertRecursive(nodes.value, null);
   };
 
+  const exportProject = (): string => {
+    return JSON.stringify(nodes.value, null, 2);
+  };
+
+  const importProject = (json: string) => {
+    try {
+      const parsed = JSON.parse(json);
+      if (Array.isArray(parsed)) {
+        // Basic validation: check if items look like ScrivNodes
+        // In a real app, we'd use Zod or similar for robust validation
+        nodes.value = parsed;
+        activeNodeId.value = null; // Reset active node
+      } else {
+        console.error('Invalid project file format');
+        alert('Invalid project file format');
+      }
+    } catch (e) {
+      console.error('Failed to parse project file', e);
+      alert('Failed to parse project file');
+    }
+  };
+
   // Initialize store
   init();
 
@@ -184,6 +206,8 @@ export const useDocumentStore = defineStore('document', () => {
     deleteNode,
     updateNode,
     setActiveNode,
-    moveNode
+    moveNode,
+    exportProject,
+    importProject
   };
 });

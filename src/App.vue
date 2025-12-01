@@ -23,7 +23,40 @@ watch(activeNode, (newNode) => {
       viewMode.value = 'editor';
     }
   }
+
 });
+
+const handleExport = () => {
+  const json = store.exportProject();
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'scrivai-project.json';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const handleImport = () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+  input.onchange = (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        if (content) {
+          store.importProject(content);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+  input.click();
+};
+
 </script>
 
 <template>
@@ -50,6 +83,10 @@ watch(activeNode, (newNode) => {
           >
             🗂️
           </button>
+        </div>
+        <div class="project-actions">
+          <button @click="handleExport" title="Export Project">💾 Export</button>
+          <button @click="handleImport" title="Import Project">📂 Import</button>
         </div>
         <div class="current-doc-title">
           {{ activeNode?.title || 'ScrivAI' }}
@@ -106,6 +143,21 @@ watch(activeNode, (newNode) => {
   display: flex;
   gap: 2px;
   margin-right: 20px;
+}
+
+.project-actions {
+  display: flex;
+  gap: 5px;
+  margin-right: 20px;
+}
+
+.project-actions button {
+  border: 1px solid #ccc;
+  color: black;
+  background: white;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 .view-toggle button {
