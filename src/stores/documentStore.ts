@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { ScrivNode, NodeStatus } from '../types';
+import type { ScrivNode } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 export const useDocumentStore = defineStore('document', () => {
@@ -140,10 +140,7 @@ export const useDocumentStore = defineStore('document', () => {
     }
 
     // Helper to insert
-    const insertNode = (list: ScrivNode[]) => {
-       // This logic is tricky because we need to find the target's parent list
-       // We can traverse and find the list containing targetId
-    };
+
 
     // Re-implementing insertion logic
     const insertRecursive = (list: ScrivNode[], parentId: string | null): boolean => {
@@ -153,8 +150,10 @@ export const useDocumentStore = defineStore('document', () => {
         if (position === 'inside') {
           // Add to target's children
           const target = list[targetIndex];
-          draggedNode!.parentId = target.id;
-          target.children.push(draggedNode!);
+          if (target) {
+            draggedNode!.parentId = target.id;
+            target.children.push(draggedNode!);
+          }
         } else if (position === 'before') {
           draggedNode!.parentId = parentId;
           list.splice(targetIndex, 0, draggedNode!);
