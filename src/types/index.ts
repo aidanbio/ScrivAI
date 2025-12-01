@@ -5,6 +5,7 @@ export interface ScrivNode {
   title: string;
   body: string; // HTML content
   synopsis: string;
+  synopsisImage?: string; // Base64 encoded image
   status: NodeStatus;
   children: ScrivNode[];
   parentId: string | null;
