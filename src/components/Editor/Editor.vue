@@ -13,7 +13,7 @@ import { useDocumentStore } from '../../stores/documentStore';
 const store = useDocumentStore();
 
 const editor = useEditor({
-  content: '',
+  content: store.activeNode?.body || '',
   extensions: [
     StarterKit,
     TextStyle,
@@ -54,7 +54,8 @@ watch(
     } else if (editor.value && !newId) {
         editor.value.commands.setContent('');
     }
-  }
+  },
+  { immediate: true }
 );
 
 onBeforeUnmount(() => {

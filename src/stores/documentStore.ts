@@ -113,6 +113,37 @@ export const useDocumentStore = defineStore('document', () => {
   };
 
   const moveNode = (draggedId: string, targetId: string | null, position: 'before' | 'after' | 'inside') => {
+    // Check if target is a descendant of dragged node
+    const isDescendant = (parent: ScrivNode, targetId: string): boolean => {
+      if (parent.id === targetId) return true;
+      for (const child of parent.children) {
+        if (isDescendant(child, targetId)) return true;
+      }
+      return false;
+    };
+
+    // We need to find the dragged node *before* removing it to check descendants
+    // But we already have logic to remove it. 
+    // Let's find it first without removing to check validity.
+    const findNode = (list: ScrivNode[], id: string): ScrivNode | undefined => {
+      for (const node of list) {
+        if (node.id === id) return node;
+        if (node.children.length > 0) {
+          const found = findNode(node.children, id);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+
+    const nodeToMove = findNode(nodes.value, draggedId);
+    if (!nodeToMove) return; // Should not happen
+
+    if (targetId && isDescendant(nodeToMove, targetId)) {
+      console.warn('Cannot move a node into its own descendant');
+      return;
+    }
+
     // 1. Find and remove dragged node
     let draggedNode: ScrivNode | undefined;
     
@@ -140,8 +171,6 @@ export const useDocumentStore = defineStore('document', () => {
     }
 
     // Helper to insert
-
-
     // Re-implementing insertion logic
     const insertRecursive = (list: ScrivNode[], parentId: string | null): boolean => {
       // Check if target is in this list
