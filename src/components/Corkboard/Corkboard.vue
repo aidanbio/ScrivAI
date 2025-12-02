@@ -21,14 +21,19 @@ const onDrop = (e: DragEvent, targetId: string) => {
   const type = e.dataTransfer?.getData('type');
   
   if (draggedId && draggedId !== targetId && type === 'corkboard-card') {
-    // Move draggedId before targetId
-    // We need to know the parent. Since we are in Corkboard of activeNode, 
-    // the parent is activeNode.
-    // store.moveNode handles reordering if we pass the targetId.
-    // My store.moveNode implementation:
-    // if position is 'before', it inserts before target.
-    
-    store.moveNode(draggedId, targetId, 'before');
+    // Move draggedId relative to targetId
+    const draggedIndex = children.value.findIndex(c => c.id === draggedId);
+    const targetIndex = children.value.findIndex(c => c.id === targetId);
+
+    if (draggedIndex !== -1 && targetIndex !== -1) {
+      if (draggedIndex < targetIndex) {
+        // Moving right/down: insert AFTER target
+        store.moveNode(draggedId, targetId, 'after');
+      } else {
+        // Moving left/up: insert BEFORE target
+        store.moveNode(draggedId, targetId, 'before');
+      }
+    }
   }
 };
 </script>
