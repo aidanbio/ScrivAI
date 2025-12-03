@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const useDocumentStore = defineStore('document', () => {
   const nodes = ref<ScrivNode[]>([]);
+  const trunkNodes = ref<ScrivNode[]>([]);
   const activeNodeId = ref<string | null>(null);
 
   // Initial dummy data
@@ -38,7 +39,7 @@ export const useDocumentStore = defineStore('document', () => {
 
   // Getters
   const activeNode = computed(() => {
-    return findNodeById(nodes.value, activeNodeId.value);
+    return findNodeById(nodes.value, activeNodeId.value) || findNodeById(trunkNodes.value, activeNodeId.value);
   });
 
   // Actions
@@ -82,6 +83,23 @@ export const useDocumentStore = defineStore('document', () => {
     activeNodeId.value = newNode.id;
   };
 
+  const addTrunkNode = (file: File, fileData: string) => {
+    const newNode: ScrivNode = {
+      id: uuidv4(),
+      title: file.name,
+      body: '',
+      synopsis: `Uploaded ${file.type || 'File'}`,
+      status: 'Draft',
+      children: [],
+      parentId: null,
+      isFolder: false,
+      fileData: fileData,
+      fileType: file.type
+    };
+    trunkNodes.value.push(newNode);
+    activeNodeId.value = newNode.id;
+  };
+
   const deleteNode = (id: string) => {
     const removeRecursive = (list: ScrivNode[]): boolean => {
       const index = list.findIndex(n => n.id === id);
@@ -96,13 +114,14 @@ export const useDocumentStore = defineStore('document', () => {
     };
     
     removeRecursive(nodes.value);
+    removeRecursive(trunkNodes.value);
     if (activeNodeId.value === id) {
       activeNodeId.value = null;
     }
   };
 
   const updateNode = (id: string, updates: Partial<ScrivNode>) => {
-    const node = findNodeById(nodes.value, id);
+    const node = findNodeById(nodes.value, id) || findNodeById(trunkNodes.value, id);
     if (node) {
       Object.assign(node, updates);
     }
@@ -136,7 +155,7 @@ export const useDocumentStore = defineStore('document', () => {
       return undefined;
     };
 
-    const nodeToMove = findNode(nodes.value, draggedId);
+    const nodeToMove = findNode(nodes.value, draggedId) || findNode(trunkNodes.value, draggedId);
     if (!nodeToMove) return; // Should not happen
 
     if (targetId && isDescendant(nodeToMove, targetId)) {
@@ -159,14 +178,28 @@ export const useDocumentStore = defineStore('document', () => {
       return undefined;
     };
 
-    draggedNode = removeNode(nodes.value);
+    // Determine which list we are operating on
+    const isBinderNode = findNode(nodes.value, draggedId) !== undefined;
+    const targetList = isBinderNode ? nodes.value : trunkNodes.value;
+
+    // Prevent moving between lists for now
+    if (targetId) {
+      const isTargetBinder = findNode(nodes.value, targetId) !== undefined;
+      if (isBinderNode !== isTargetBinder) {
+        console.warn('Cannot move nodes between Binder and Trunk');
+        return;
+      }
+    }
+
+    draggedNode = removeNode(targetList);
     if (!draggedNode) return;
 
     // 2. Insert at new location
     if (!targetId) {
       // Move to root
       draggedNode.parentId = null;
-      nodes.value.push(draggedNode);
+      draggedNode.parentId = null;
+      targetList.push(draggedNode);
       return;
     }
 
@@ -199,21 +232,29 @@ export const useDocumentStore = defineStore('document', () => {
       return false;
     };
 
-    insertRecursive(nodes.value, null);
+    insertRecursive(targetList, null);
   };
 
   const exportProject = (): string => {
-    return JSON.stringify(nodes.value, null, 2);
+    return JSON.stringify({
+      binder: nodes.value,
+      trunk: trunkNodes.value
+    }, null, 2);
   };
 
   const importProject = (json: string) => {
     try {
       const parsed = JSON.parse(json);
       if (Array.isArray(parsed)) {
-        // Basic validation: check if items look like ScrivNodes
-        // In a real app, we'd use Zod or similar for robust validation
+        // Legacy format
         nodes.value = parsed;
-        activeNodeId.value = null; // Reset active node
+        trunkNodes.value = [];
+        activeNodeId.value = null;
+      } else if (parsed.binder && Array.isArray(parsed.binder)) {
+        // New format
+        nodes.value = parsed.binder;
+        trunkNodes.value = parsed.trunk || [];
+        activeNodeId.value = null;
       } else {
         console.error('Invalid project file format');
         alert('Invalid project file format');
@@ -229,9 +270,11 @@ export const useDocumentStore = defineStore('document', () => {
 
   return {
     nodes,
+    trunkNodes,
     activeNodeId,
     activeNode,
     addNode,
+    addTrunkNode,
     deleteNode,
     updateNode,
     setActiveNode,

@@ -14,4 +14,6 @@ export interface ScrivNode {
     width?: number;
     height?: number;
   };
+  fileData?: string; // Base64 encoded file content
+  fileType?: string; // Mime type, e.g. 'application/pdf'
 }
