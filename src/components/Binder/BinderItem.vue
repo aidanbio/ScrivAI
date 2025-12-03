@@ -71,12 +71,22 @@ const onDragOver = (e: DragEvent) => {
   const percentage = y / height;
 
   if (props.node.isFolder) {
-    if (percentage < 0.25) {
-      dragOverPosition.value = 'before';
-    } else if (percentage > 0.75) {
-      dragOverPosition.value = 'after';
+    if (isOpen.value) {
+      // Open folder: only before or inside
+      if (percentage < 0.25) {
+        dragOverPosition.value = 'before';
+      } else {
+        dragOverPosition.value = 'inside';
+      }
     } else {
-      dragOverPosition.value = 'inside';
+      // Closed folder: before, inside, after
+      if (percentage < 0.25) {
+        dragOverPosition.value = 'before';
+      } else if (percentage > 0.75) {
+        dragOverPosition.value = 'after';
+      } else {
+        dragOverPosition.value = 'inside';
+      }
     }
   } else {
     // Files cannot have children, so only before/after
@@ -99,6 +109,11 @@ const onDrop = (e: DragEvent) => {
   if (draggedId && draggedId !== props.node.id) {
     if (dragOverPosition.value) {
       store.moveNode(draggedId, props.node.id, dragOverPosition.value);
+      
+      // Auto-expand if dropped inside a folder
+      if (dragOverPosition.value === 'inside' && props.node.isFolder) {
+        isOpen.value = true;
+      }
     }
   }
   
