@@ -8,34 +8,6 @@ const store = useDocumentStore();
 const activeNode = computed(() => store.activeNode);
 const children = computed(() => activeNode.value?.children || []);
 
-const onDragStart = (e: DragEvent, id: string) => {
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', id);
-    e.dataTransfer.setData('type', 'corkboard-card');
-  }
-};
-
-const onDrop = (e: DragEvent, targetId: string) => {
-  const draggedId = e.dataTransfer?.getData('text/plain');
-  const type = e.dataTransfer?.getData('type');
-  
-  if (draggedId && draggedId !== targetId && type === 'corkboard-card') {
-    // Move draggedId relative to targetId
-    const draggedIndex = children.value.findIndex(c => c.id === draggedId);
-    const targetIndex = children.value.findIndex(c => c.id === targetId);
-
-    if (draggedIndex !== -1 && targetIndex !== -1) {
-      if (draggedIndex < targetIndex) {
-        // Moving right/down: insert AFTER target
-        store.moveNode(draggedId, targetId, 'after');
-      } else {
-        // Moving left/up: insert BEFORE target
-        store.moveNode(draggedId, targetId, 'before');
-      }
-    }
-  }
-};
 </script>
 
 <template>
@@ -45,10 +17,6 @@ const onDrop = (e: DragEvent, targetId: string) => {
         v-for="child in children" 
         :key="child.id" 
         :node="child"
-        draggable="true"
-        @dragstart="onDragStart($event, child.id)"
-        @dragover.prevent
-        @drop="onDrop($event, child.id)"
       />
     </div>
     <div v-else class="empty-state">

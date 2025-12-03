@@ -12,6 +12,7 @@ const store = useDocumentStore();
 const width = ref(props.node.corkboardOptions?.width || 200);
 const height = ref(props.node.corkboardOptions?.height || 250);
 const isResizing = ref(false);
+const dragOverSide = ref<'left' | 'right' | null>(null);
 
 const cardStyle = computed(() => ({
   width: `${width.value}px`,
@@ -53,10 +54,67 @@ const startResize = (e: MouseEvent) => {
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('mouseup', onMouseUp);
 };
+
+// Drag and Drop
+const onDragStart = (e: DragEvent) => {
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', props.node.id);
+    e.dataTransfer.setData('type', 'corkboard-card');
+  }
+};
+
+const onDragOver = (e: DragEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  if (!e.currentTarget) return;
+
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const w = rect.width;
+  
+  if (x < w / 2) {
+    dragOverSide.value = 'left';
+  } else {
+    dragOverSide.value = 'right';
+  }
+};
+
+const onDragLeave = () => {
+  dragOverSide.value = null;
+};
+
+const onDrop = (e: DragEvent) => {
+  e.stopPropagation();
+  const draggedId = e.dataTransfer?.getData('text/plain');
+  const type = e.dataTransfer?.getData('type');
+
+  if (draggedId && draggedId !== props.node.id && type === 'corkboard-card') {
+    if (dragOverSide.value) {
+      store.moveNode(draggedId, props.node.id, dragOverSide.value === 'left' ? 'before' : 'after');
+    }
+  }
+  dragOverSide.value = null;
+};
+
 </script>
 
 <template>
-  <div class="index-card" :style="cardStyle" :class="{ resizing: isResizing }">
+  <div 
+    class="index-card" 
+    :style="cardStyle" 
+    :class="{ 
+      resizing: isResizing,
+      'drag-over-left': dragOverSide === 'left',
+      'drag-over-right': dragOverSide === 'right'
+    }"
+    draggable="true"
+    @dragstart="onDragStart"
+    @dragover="onDragOver"
+    @dragleave="onDragLeave"
+    @drop="onDrop"
+  >
     <div class="card-header">
       <span class="card-title">{{ node.title }}</span>
       <span class="card-status" :class="node.status.toLowerCase()">{{ node.status }}</span>
@@ -107,6 +165,15 @@ const startResize = (e: MouseEvent) => {
 
 .index-card:active {
   cursor: grabbing;
+}
+
+/* Drag and Drop Visuals */
+.index-card.drag-over-left {
+  border-left: 4px solid #2196f3;
+}
+
+.index-card.drag-over-right {
+  border-right: 4px solid #2196f3;
 }
 
 .card-header {

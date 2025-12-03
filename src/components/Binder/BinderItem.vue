@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const store = useDocumentStore();
 const isOpen = ref(true);
+const dragOverPosition = ref<'before' | 'inside' | 'after' | null>(null);
 
 const isActive = computed(() => store.activeNodeId === props.node.id);
 
@@ -49,21 +50,52 @@ const onDragStart = (e: DragEvent) => {
   }
 };
 
+const onDragOver = (e: DragEvent) => {
+  e.preventDefault(); // Necessary to allow dropping
+  e.stopPropagation();
+
+  if (!e.currentTarget) return;
+  
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  const y = e.clientY - rect.top;
+  const height = rect.height;
+  
+  // Calculate percentage
+  const percentage = y / height;
+
+  if (props.node.isFolder) {
+    if (percentage < 0.25) {
+      dragOverPosition.value = 'before';
+    } else if (percentage > 0.75) {
+      dragOverPosition.value = 'after';
+    } else {
+      dragOverPosition.value = 'inside';
+    }
+  } else {
+    // Files cannot have children, so only before/after
+    if (percentage < 0.5) {
+      dragOverPosition.value = 'before';
+    } else {
+      dragOverPosition.value = 'after';
+    }
+  }
+};
+
+const onDragLeave = () => {
+  dragOverPosition.value = null;
+};
+
 const onDrop = (e: DragEvent) => {
   e.stopPropagation();
   const draggedId = e.dataTransfer?.getData('text/plain');
+  
   if (draggedId && draggedId !== props.node.id) {
-    // Determine position based on drop target
-    // For simplicity, dropping ON a folder moves inside.
-    // Dropping ON a file does nothing (or could move before/after).
-    
-    if (props.node.isFolder) {
-      store.moveNode(draggedId, props.node.id, 'inside');
-    } else {
-        // Maybe move after?
-        // store.moveNode(draggedId, props.node.id, 'after');
+    if (dragOverPosition.value) {
+      store.moveNode(draggedId, props.node.id, dragOverPosition.value);
     }
   }
+  
+  dragOverPosition.value = null;
 };
 
 </script>
@@ -72,11 +104,17 @@ const onDrop = (e: DragEvent) => {
   <div class="binder-item">
     <div 
       class="item-content" 
-      :class="{ active: isActive }"
+      :class="{ 
+        active: isActive,
+        'drag-over-inside': dragOverPosition === 'inside',
+        'drag-over-before': dragOverPosition === 'before',
+        'drag-over-after': dragOverPosition === 'after'
+      }"
       @click="selectNode"
       draggable="true"
       @dragstart="onDragStart"
-      @dragover.prevent
+      @dragover="onDragOver"
+      @dragleave="onDragLeave"
       @drop="onDrop"
       :style="{ paddingLeft: `${depth * 20}px` }"
     >
@@ -121,6 +159,8 @@ const onDrop = (e: DragEvent) => {
   padding: 4px 8px;
   cursor: pointer;
   border-radius: 4px;
+  position: relative; /* For pseudo-elements */
+  border: 2px solid transparent; /* Reserve space for border to prevent layout shift */
 }
 
 .item-content:hover {
@@ -130,6 +170,36 @@ const onDrop = (e: DragEvent) => {
 .item-content.active {
   background-color: #e0e0e0;
   font-weight: bold;
+}
+
+/* Drag and Drop Visuals */
+.item-content.drag-over-inside {
+  background-color: #e3f2fd; /* Light Sky Blue */
+  border: 2px solid #2196f3; /* Sky Blue */
+}
+
+.item-content.drag-over-before::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background-color: #2196f3;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.item-content.drag-over-after::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background-color: #2196f3;
+  z-index: 10;
+  pointer-events: none;
 }
 
 .toggle {
