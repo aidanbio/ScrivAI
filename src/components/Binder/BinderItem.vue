@@ -46,13 +46,20 @@ const onDragStart = (e: DragEvent) => {
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', props.node.id);
+    store.setDraggedNodeId(props.node.id);
     // Add a class to styling
   }
+};
+
+const onDragEnd = () => {
+  store.setDraggedNodeId(null);
 };
 
 const onDragOver = (e: DragEvent) => {
   e.preventDefault(); // Necessary to allow dropping
   e.stopPropagation();
+
+  if (store.draggedNodeId === props.node.id) return;
 
   if (!e.currentTarget) return;
   
@@ -113,6 +120,7 @@ const onDrop = (e: DragEvent) => {
       @click="selectNode"
       draggable="true"
       @dragstart="onDragStart"
+      @dragend="onDragEnd"
       @dragover="onDragOver"
       @dragleave="onDragLeave"
       @drop="onDrop"

@@ -7,6 +7,7 @@ export const useDocumentStore = defineStore('document', () => {
   const nodes = ref<ScrivNode[]>([]);
   const trunkNodes = ref<ScrivNode[]>([]);
   const activeNodeId = ref<string | null>(null);
+  const draggedNodeId = ref<string | null>(null);
 
   // Initial dummy data
   const init = () => {
@@ -129,6 +130,10 @@ export const useDocumentStore = defineStore('document', () => {
 
   const setActiveNode = (id: string) => {
     activeNodeId.value = id;
+  };
+
+  const setDraggedNodeId = (id: string | null) => {
+    draggedNodeId.value = id;
   };
 
   const moveNode = (draggedId: string, targetId: string | null, position: 'before' | 'after' | 'inside') => {
@@ -278,6 +283,8 @@ export const useDocumentStore = defineStore('document', () => {
     deleteNode,
     updateNode,
     setActiveNode,
+    setDraggedNodeId,
+    draggedNodeId,
     moveNode,
     exportProject,
     importProject
