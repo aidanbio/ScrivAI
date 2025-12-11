@@ -1,16 +1,41 @@
 <script setup lang="ts">
 import { useEditor, EditorContent } from '@tiptap/vue-3';
+import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import StarterKit from '@tiptap/starter-kit';
 import FontFamily from '@tiptap/extension-font-family';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import TextAlign from '@tiptap/extension-text-align';
+import Highlight from '@tiptap/extension-highlight';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableCell } from '@tiptap/extension-table-cell';
 import { FontSize } from './extensions/FontSize';
 import { LineHeight } from './extensions/LineHeight';
-import { watch, onBeforeUnmount } from 'vue';
+import TableContextMenu from './TableContextMenu.vue';
+import { watch, onBeforeUnmount, ref } from 'vue';
 import { useDocumentStore } from '../../stores/documentStore';
 
 const store = useDocumentStore();
+
+const showContextMenu = ref(false);
+const contextMenuPos = ref({ x: 0, y: 0 });
+
+const handleContextMenu = (event: MouseEvent) => {
+  if (!editor.value) return;
+
+  const target = event.target as HTMLElement;
+  const cell = target.closest('td, th');
+  
+  if (cell) {
+    event.preventDefault();
+    showContextMenu.value = true;
+    contextMenuPos.value = { x: event.clientX, y: event.clientY };
+  } else {
+    showContextMenu.value = false;
+  }
+};
 
 const editor = useEditor({
   content: store.activeNode?.body || '',
@@ -24,38 +49,62 @@ const editor = useEditor({
     }),
     FontSize,
     LineHeight,
+    Highlight.configure({ multicolor: true }),
+    Table.configure({
+      resizable: true,
+    }),
+    TableRow,
+    TableHeader,
+    TableCell,
   ],
   onUpdate: ({ editor }) => {
-    if (store.activeNodeId) {
+    if (store.activeNodeId && !store.activeNode?.isFolder) {
       store.updateNode(store.activeNodeId, { body: editor.getHTML() });
     }
   },
 });
 
 // Watch for active node changes to update editor content
+// Watch for active node changes to update editor content
 watch(
   () => store.activeNode,
-  (newNode) => {
-    if (editor.value && newNode) {
-      // const currentContent = editor.value.getHTML(); // Unused
-      // Logic handled in activeNodeId watcher mostly
+  (node) => {
+    if (!editor.value) return;
+
+    if (node) {
+      if (node.isFolder) {
+        // Folder view: Show children content separated by dotted lines
+        const content = node.children.map(child => child.body).join('<hr>');
+        if (editor.value.getHTML() !== content) {
+          editor.value.commands.setContent(content);
+        }
+        editor.value.setEditable(false);
+      } else {
+        // Document view: Show document content
+        if (editor.value.getHTML() !== node.body) {
+          editor.value.commands.setContent(node.body);
+        }
+        editor.value.setEditable(true);
+      }
+    } else {
+      // No active node
+      editor.value.commands.setContent('');
+      editor.value.setEditable(false);
     }
-  }
+  },
+  { deep: true, immediate: true }
 );
 
+// Watch for active node ID changes to ensure specific handling if needed
+// (covered by activeNode watcher but keeping cleanup consistent)
 watch(
   () => store.activeNodeId,
   (newId) => {
-    if (editor.value && newId) {
-      const node = store.activeNode;
-      if (node && editor.value.getHTML() !== node.body) {
-        editor.value.commands.setContent(node.body);
-      }
-    } else if (editor.value && !newId) {
-        editor.value.commands.setContent('');
+    if (!newId && editor.value) {
+      editor.value.commands.setContent('');
+      editor.value.setEditable(false);
     }
-  },
-  { immediate: true }
+  }
 );
 
 onBeforeUnmount(() => {
@@ -182,6 +231,21 @@ onBeforeUnmount(() => {
         class="color-picker"
       >
 
+      <input 
+        type="color" 
+        @input="editor.chain().focus().setHighlight({ color: ($event.target as HTMLInputElement).value }).run()" 
+        :value="editor.getAttributes('highlight').color || '#FFFFFF'"
+        title="Background Color"
+        class="color-picker"
+      >
+      <button 
+        @click="editor.chain().focus().unsetHighlight().unsetColor().run()"
+        title="Clear Colors"
+        :disabled="!editor.isActive('highlight') && !editor.getAttributes('textStyle').color"
+      >
+        ✕
+      </button>
+
       <div class="separator"></div>
 
       <!-- Headings -->
@@ -198,14 +262,62 @@ onBeforeUnmount(() => {
         H2
       </button>
       <button 
+        @click="editor.chain().focus().toggleHeading({ level: 3 }).run()" 
+        :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }"
+      >
+        Subtitle
+      </button>
+      <button 
         @click="editor.chain().focus().toggleBulletList().run()" 
         :class="{ 'is-active': editor.isActive('bulletList') }"
       >
-        List
+        Bullet List
+      </button>
+      <button 
+        @click="editor.chain().focus().toggleOrderedList().run()" 
+        :class="{ 'is-active': editor.isActive('orderedList') }"
+      >
+        Ordered List
+      </button>
+
+      <div class="separator"></div>
+
+      <button 
+        @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()"
+      >
+        Insert Table
       </button>
     </div>
     
-    <editor-content :editor="editor" class="editor-content" />
+    <bubble-menu 
+      v-if="editor" 
+      :editor="editor" 
+      :tippy-options="{ duration: 100 }"
+      :should-show="({ editor }: { editor: any }) => editor.isActive('table')"
+      class="bubble-menu-table"
+    >
+      <button @click="editor.chain().focus().addColumnBefore().run()">Add Col Before</button>
+      <button @click="editor.chain().focus().addColumnAfter().run()">Add Col After</button>
+      <button @click="editor.chain().focus().deleteColumn().run()">Delete Col</button>
+      <button @click="editor.chain().focus().addRowBefore().run()">Add Row Before</button>
+      <button @click="editor.chain().focus().addRowAfter().run()">Add Row After</button>
+      <button @click="editor.chain().focus().deleteRow().run()">Delete Row</button>
+      <button @click="editor.chain().focus().deleteTable().run()">Delete Table</button>
+    </bubble-menu>
+
+    <editor-content 
+      :editor="editor" 
+      class="editor-content"
+      @contextmenu="handleContextMenu"
+    />
+
+    <TableContextMenu
+      v-if="showContextMenu && editor"
+      :editor="editor"
+      :x="contextMenuPos.x"
+      :y="contextMenuPos.y"
+      @close="showContextMenu = false"
+    />
   </div>
 </template>
 
@@ -283,5 +395,81 @@ onBeforeUnmount(() => {
 
 :deep(.ProseMirror p) {
   margin-bottom: 1em;
+}
+
+:deep(.ProseMirror hr) {
+  border: none;
+  border-top: 2px dashed #ccc;
+  margin: 20px 0;
+}
+
+/* Table Styles */
+:deep(.ProseMirror table) {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+:deep(.ProseMirror td),
+:deep(.ProseMirror th) {
+  min-width: 1em;
+  border: 2px solid #ced4da;
+  padding: 3px 5px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+}
+
+:deep(.ProseMirror th) {
+  font-weight: bold;
+  text-align: left;
+  background-color: #f1f3f5;
+}
+
+:deep(.ProseMirror .selectedCell:after) {
+  z-index: 2;
+  position: absolute;
+  content: "";
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: rgba(200, 200, 255, 0.4);
+  pointer-events: none;
+}
+
+:deep(.ProseMirror .column-resize-handle) {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: #adf;
+  pointer-events: none;
+}
+
+.bubble-menu-table {
+  display: flex;
+  background-color: #333;
+  padding: 0.2rem;
+  border-radius: 0.5rem;
+  gap: 0.3rem;
+}
+
+.bubble-menu-table button {
+  border: none;
+  background: none;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.3rem 0.5rem;
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+.bubble-menu-table button:hover,
+.bubble-menu-table button.is-active {
+  opacity: 1;
+  background-color: #555;
+  border-radius: 0.3rem;
 }
 </style>
