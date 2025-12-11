@@ -61,7 +61,7 @@ const handleFileUpload = (event: Event) => {
 </script>
 
 <template>
-  <div v-if="visible" class="modal-overlay">
+  <div v-if="visible" class="modal-overlay" @click.stop>
     <div class="modal-content">
       <h2>{{ title }}</h2>
       
@@ -159,7 +159,7 @@ h2 {
 }
 
 textarea {
-    width: 100%;
+    /* width: 100%; */
     height: 100px;
     padding: 8px;
     border: 1px solid #ddd;
