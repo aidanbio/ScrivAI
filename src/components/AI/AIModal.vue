@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import type { ScrivNode } from '../../types';
+import { useDocumentStore } from '../../stores/documentStore';
 
 const props = defineProps<{
   visible: boolean;
@@ -9,6 +10,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{(e: 'close'): void; (e: 'confirm', payload: any): void}>();
+
+const store = useDocumentStore();
 
 const instruction = ref('');
 const synopsisText = ref('');
@@ -40,11 +43,16 @@ const handleCancel = () => {
 
 const handleFileUpload = (event: Event) => {
     const target = event.target as HTMLInputElement;
-    if (target.files && target.files[0]) {
+    if (target.files && target.files[0] && props.node) {
         const file = target.files[0];
         const reader = new FileReader();
         reader.onload = (e) => {
-            imagePreview.value = e.target?.result as string;
+            const result = e.target?.result as string;
+            imagePreview.value = result;
+            // Sync with store immediately
+            if (props.node) {
+                store.updateNode(props.node.id, { synopsisImage: result });
+            }
         };
         reader.readAsDataURL(file);
     }
