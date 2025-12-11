@@ -7,6 +7,10 @@ const props = defineProps<{
   node: ScrivNode;
 }>();
 
+const emit = defineEmits<{
+  (e: 'context-menu', payload: { event: MouseEvent, nodeId: string }): void
+}>();
+
 const store = useDocumentStore();
 
 const width = ref(props.node.corkboardOptions?.width || 200);
@@ -98,6 +102,10 @@ const onDrop = (e: DragEvent) => {
   dragOverSide.value = null;
 };
 
+const onContextMenu = (e: MouseEvent) => {
+  emit('context-menu', { event: e, nodeId: props.node.id });
+}
+
 </script>
 
 <template>
@@ -114,6 +122,7 @@ const onDrop = (e: DragEvent) => {
     @dragover="onDragOver"
     @dragleave="onDragLeave"
     @drop="onDrop"
+    @contextmenu.prevent="onContextMenu"
   >
     <div class="card-header">
       <span class="card-title">{{ node.title }}</span>
