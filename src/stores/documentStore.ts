@@ -7,6 +7,7 @@ export const useDocumentStore = defineStore('document', () => {
   const nodes = ref<ScrivNode[]>([]);
   const trunkNodes = ref<ScrivNode[]>([]);
   const activeNodeId = ref<string | null>(null);
+  const selectedNodeId = ref<string | null>(null);
   const draggedNodeId = ref<string | null>(null);
 
   // Initial dummy data
@@ -41,6 +42,10 @@ export const useDocumentStore = defineStore('document', () => {
   // Getters
   const activeNode = computed(() => {
     return findNodeById(nodes.value, activeNodeId.value) || findNodeById(trunkNodes.value, activeNodeId.value);
+  });
+
+  const selectedNode = computed(() => {
+    return findNodeById(nodes.value, selectedNodeId.value) || findNodeById(trunkNodes.value, selectedNodeId.value);
   });
 
   // Actions
@@ -119,6 +124,9 @@ export const useDocumentStore = defineStore('document', () => {
     if (activeNodeId.value === id) {
       activeNodeId.value = null;
     }
+    if (selectedNodeId.value === id) {
+      selectedNodeId.value = null;
+    }
   };
 
   const updateNode = (id: string, updates: Partial<ScrivNode>) => {
@@ -130,6 +138,11 @@ export const useDocumentStore = defineStore('document', () => {
 
   const setActiveNode = (id: string) => {
     activeNodeId.value = id;
+    selectedNodeId.value = null; // Reset selection when navigating
+  };
+
+  const setSelectedNode = (id: string | null) => {
+    selectedNodeId.value = id;
   };
 
   const setDraggedNodeId = (id: string | null) => {
@@ -278,11 +291,14 @@ export const useDocumentStore = defineStore('document', () => {
     trunkNodes,
     activeNodeId,
     activeNode,
+    selectedNodeId,
+    selectedNode,
     addNode,
     addTrunkNode,
     deleteNode,
     updateNode,
     setActiveNode,
+    setSelectedNode,
     setDraggedNodeId,
     draggedNodeId,
     moveNode,

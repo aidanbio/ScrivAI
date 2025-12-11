@@ -5,6 +5,7 @@ import { useDocumentStore } from '../../stores/documentStore';
 
 const props = defineProps<{
   node: ScrivNode;
+  isSelected?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -115,7 +116,8 @@ const onContextMenu = (e: MouseEvent) => {
     :class="{ 
       resizing: isResizing,
       'drag-over-left': dragOverSide === 'left',
-      'drag-over-right': dragOverSide === 'right'
+      'drag-over-right': dragOverSide === 'right',
+      'selected': isSelected
     }"
     draggable="true"
     @dragstart="onDragStart"
@@ -157,9 +159,15 @@ const onContextMenu = (e: MouseEvent) => {
   display: flex;
   flex-direction: column;
   box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, outline 0.2s;
   cursor: grab;
   position: relative; /* For resize handle positioning */
+}
+
+.index-card.selected {
+  border-color: #2196f3;
+  outline: 2px solid #2196f3;
+  box-shadow: 4px 4px 10px rgba(33, 150, 243, 0.3);
 }
 
 .index-card.resizing {

@@ -63,6 +63,14 @@ const confirmAIModal = (payload: any) => {
   closeAIModal();
 };
 
+const handleBackgroundClick = () => {
+  store.setSelectedNode(null);
+};
+
+const handleCardClick = (id: string) => {
+  store.setSelectedNode(id);
+};
+
 const onGlobalClick = () => {
   if (contextMenu.value.visible) {
     closeContextMenu();
@@ -80,13 +88,15 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="corkboard">
+  <div class="corkboard" @click="handleBackgroundClick">
     <div v-if="children.length > 0" class="cards-grid">
       <IndexCard 
         v-for="child in children" 
         :key="child.id" 
         :node="child"
+        :is-selected="store.selectedNodeId === child.id"
         @context-menu="handleCardContextMenu"
+        @click.stop="handleCardClick(child.id)"
       />
     </div>
     <div v-else class="empty-state">

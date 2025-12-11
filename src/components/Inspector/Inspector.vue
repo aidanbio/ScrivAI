@@ -6,7 +6,7 @@ import type { NodeStatus } from '../../types';
 const store = useDocumentStore();
 const fileInput = ref<HTMLInputElement | null>(null);
 
-const activeNode = computed(() => store.activeNode);
+const activeNode = computed(() => store.selectedNode || store.activeNode);
 
 const updateSynopsis = (e: Event) => {
   const target = e.target as HTMLTextAreaElement;
