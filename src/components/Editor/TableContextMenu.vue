@@ -2,7 +2,7 @@
 import { type Editor } from '@tiptap/vue-3';
 import { onMounted, onUnmounted, ref } from 'vue';
 
-const props = defineProps<{
+defineProps<{
   editor: Editor;
   x: number;
   y: number;

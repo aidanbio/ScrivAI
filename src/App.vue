@@ -85,8 +85,8 @@ const handleImport = () => {
           </button>
         </div>
         <div class="project-actions">
-          <button @click="handleExport" title="Export Project">💾 Export</button>
-          <button @click="handleImport" title="Import Project">📂 Import</button>
+          <button @click="handleExport" title="Save Project">💾 Save</button>
+          <button @click="handleImport" title="Load Project">📂 Load</button>
         </div>
         <div class="current-doc-title">
           {{ activeNode?.title || 'ScrivAI' }}

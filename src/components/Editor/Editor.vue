@@ -7,6 +7,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import TextAlign from '@tiptap/extension-text-align';
 import Highlight from '@tiptap/extension-highlight';
+import Underline from '@tiptap/extension-underline';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
@@ -16,6 +17,18 @@ import { LineHeight } from './extensions/LineHeight';
 import TableContextMenu from './TableContextMenu.vue';
 import { watch, onBeforeUnmount, ref } from 'vue';
 import { useDocumentStore } from '../../stores/documentStore';
+import { 
+  Bold, 
+  Italic, 
+  Underline as UnderlineIcon, 
+  Strikethrough, 
+  AlignLeft, 
+  AlignCenter, 
+  AlignRight, 
+  AlignJustify, 
+  List, 
+  ListOrdered 
+} from 'lucide-vue-next';
 
 const store = useDocumentStore();
 
@@ -44,6 +57,7 @@ const editor = useEditor({
     TextStyle,
     FontFamily,
     Color,
+    Underline,
     TextAlign.configure({
       types: ['heading', 'paragraph'],
     }),
@@ -171,21 +185,28 @@ onBeforeUnmount(() => {
         :class="{ 'is-active': editor.isActive('bold') }"
         title="Bold"
       >
-        <b>B</b>
+        <Bold :size="16" />
       </button>
       <button 
         @click="editor.chain().focus().toggleItalic().run()" 
         :class="{ 'is-active': editor.isActive('italic') }"
         title="Italic"
       >
-        <i>I</i>
+        <Italic :size="16" />
+      </button>
+      <button 
+        @click="editor.chain().focus().toggleUnderline().run()" 
+        :class="{ 'is-active': editor.isActive('underline') }"
+        title="Underline"
+      >
+        <UnderlineIcon :size="16" />
       </button>
       <button 
         @click="editor.chain().focus().toggleStrike().run()" 
         :class="{ 'is-active': editor.isActive('strike') }"
         title="Strike"
       >
-        <s>S</s>
+        <Strikethrough :size="16" />
       </button>
 
       <div class="separator"></div>
@@ -196,28 +217,28 @@ onBeforeUnmount(() => {
         :class="{ 'is-active': editor.isActive({ textAlign: 'left' }) }"
         title="Align Left"
       >
-        Left
+        <AlignLeft :size="16" />
       </button>
       <button 
         @click="editor.chain().focus().setTextAlign('center').run()" 
         :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }"
         title="Align Center"
       >
-        Center
+        <AlignCenter :size="16" />
       </button>
       <button 
         @click="editor.chain().focus().setTextAlign('right').run()" 
         :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }"
         title="Align Right"
       >
-        Right
+        <AlignRight :size="16" />
       </button>
       <button 
         @click="editor.chain().focus().setTextAlign('justify').run()" 
         :class="{ 'is-active': editor.isActive({ textAlign: 'justify' }) }"
         title="Justify"
       >
-        Justify
+        <AlignJustify :size="16" />
       </button>
 
       <div class="separator"></div>
@@ -270,14 +291,16 @@ onBeforeUnmount(() => {
       <button 
         @click="editor.chain().focus().toggleBulletList().run()" 
         :class="{ 'is-active': editor.isActive('bulletList') }"
+        title="Bullet List"
       >
-        Bullet List
+        <List :size="16" />
       </button>
       <button 
         @click="editor.chain().focus().toggleOrderedList().run()" 
         :class="{ 'is-active': editor.isActive('orderedList') }"
+        title="Ordered List"
       >
-        Ordered List
+        <ListOrdered :size="16" />
       </button>
 
       <div class="separator"></div>
