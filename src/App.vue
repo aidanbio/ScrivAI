@@ -17,13 +17,12 @@ const toggleView = (mode: 'editor' | 'corkboard') => {
 
 watch(activeNode, (newNode) => {
   if (newNode) {
-    if (newNode.isFolder) {
-      viewMode.value = 'corkboard';
-    } else {
-      viewMode.value = 'editor';
-    }
+    // Optional: Default to Editor, or remember last view
+    // For now, let's just keep current view or maybe default to editor
+    // if viewMode logic needs adjustment.
+    // Actually, Scrivener keeps view per item often, but simplest is:
+    // Don't force switch.
   }
-
 });
 
 const handleExport = () => {
@@ -79,7 +78,6 @@ const handleImport = () => {
             :class="{ active: viewMode === 'corkboard' }" 
             @click="toggleView('corkboard')"
             title="Corkboard View"
-            :disabled="!activeNode?.isFolder"
           >
             🗂️
           </button>

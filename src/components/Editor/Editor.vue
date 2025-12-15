@@ -72,13 +72,12 @@ const editor = useEditor({
     TableCell,
   ],
   onUpdate: ({ editor }) => {
-    if (store.activeNodeId && !store.activeNode?.isFolder) {
+    if (store.activeNodeId) {
       store.updateNode(store.activeNodeId, { body: editor.getHTML() });
     }
   },
 });
 
-// Watch for active node changes to update editor content
 // Watch for active node changes to update editor content
 watch(
   () => store.activeNode,
@@ -86,20 +85,11 @@ watch(
     if (!editor.value) return;
 
     if (node) {
-      if (node.isFolder) {
-        // Folder view: Show children content separated by dotted lines
-        const content = node.children.map(child => child.body).join('<hr>');
-        if (editor.value.getHTML() !== content) {
-          editor.value.commands.setContent(content);
-        }
-        editor.value.setEditable(false);
-      } else {
-        // Document view: Show document content
-        if (editor.value.getHTML() !== node.body) {
-          editor.value.commands.setContent(node.body);
-        }
-        editor.value.setEditable(true);
+      // Unified view: Always show node's content
+      if (editor.value.getHTML() !== node.body) {
+        editor.value.commands.setContent(node.body);
       }
+      editor.value.setEditable(true);
     } else {
       // No active node
       editor.value.commands.setContent('');

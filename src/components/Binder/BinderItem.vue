@@ -13,9 +13,10 @@ const isOpen = ref(true);
 const dragOverPosition = ref<'before' | 'inside' | 'after' | null>(null);
 
 const isActive = computed(() => store.activeNodeId === props.node.id);
+const hasChildren = computed(() => props.node.children.length > 0);
 
 const toggleOpen = () => {
-  if (props.node.isFolder) {
+  if (hasChildren.value) {
     isOpen.value = !isOpen.value;
   }
 };
@@ -24,14 +25,9 @@ const selectNode = () => {
   store.setActiveNode(props.node.id);
 };
 
-const addChild = (e: Event) => {
+const addItem = (e: Event) => {
   e.stopPropagation();
-  store.addNode(props.node.id, false); // Add file
-};
-
-const addFolder = (e: Event) => {
-  e.stopPropagation();
-  store.addNode(props.node.id, true); // Add folder
+  store.addNode(props.node.id); 
 };
 
 const removeNode = (e: Event) => {
@@ -70,30 +66,21 @@ const onDragOver = (e: DragEvent) => {
   // Calculate percentage
   const percentage = y / height;
 
-  if (props.node.isFolder) {
-    if (isOpen.value) {
-      // Open folder: only before or inside
-      if (percentage < 0.25) {
-        dragOverPosition.value = 'before';
-      } else {
-        dragOverPosition.value = 'inside';
-      }
-    } else {
-      // Closed folder: before, inside, after
-      if (percentage < 0.25) {
-        dragOverPosition.value = 'before';
-      } else if (percentage > 0.75) {
-        dragOverPosition.value = 'after';
-      } else {
-        dragOverPosition.value = 'inside';
-      }
-    }
-  } else {
-    // Files cannot have children, so only before/after
-    if (percentage < 0.5) {
+  if (isOpen.value && hasChildren.value) {
+    // Open item with children: only before or inside
+    if (percentage < 0.25) {
       dragOverPosition.value = 'before';
     } else {
+      dragOverPosition.value = 'inside';
+    }
+  } else {
+    // Closed or empty: before, inside, after
+    if (percentage < 0.25) {
+      dragOverPosition.value = 'before';
+    } else if (percentage > 0.75) {
       dragOverPosition.value = 'after';
+    } else {
+      dragOverPosition.value = 'inside';
     }
   }
 };
@@ -110,8 +97,8 @@ const onDrop = (e: DragEvent) => {
     if (dragOverPosition.value) {
       store.moveNode(draggedId, props.node.id, dragOverPosition.value);
       
-      // Auto-expand if dropped inside a folder
-      if (dragOverPosition.value === 'inside' && props.node.isFolder) {
+      // Auto-expand if dropped inside
+      if (dragOverPosition.value === 'inside') {
         isOpen.value = true;
       }
     }
@@ -142,25 +129,23 @@ const onDrop = (e: DragEvent) => {
       :style="{ paddingLeft: `${depth * 20}px` }"
     >
       <span 
-        v-if="node.isFolder" 
         class="toggle" 
         @click.stop="toggleOpen"
+        :style="{ visibility: hasChildren ? 'visible' : 'hidden' }"
       >
         {{ isOpen ? '▼' : '▶' }}
       </span>
-      <span v-else class="spacer"></span>
       
-      <span class="icon">{{ node.isFolder ? '📁' : '📄' }}</span>
+      <span class="icon">📄</span>
       <span class="title">{{ node.title }}</span>
       
       <div class="actions">
-        <button v-if="node.isFolder" @click="addChild" title="Add File">+</button>
-        <button v-if="node.isFolder" @click="addFolder" title="Add Folder">+F</button>
+        <button @click="addItem" title="Add Child">+</button>
         <button @click="removeNode" title="Delete">x</button>
       </div>
     </div>
 
-    <div v-if="node.isFolder && isOpen" class="children">
+    <div v-if="hasChildren && isOpen" class="children">
       <BinderItem 
         v-for="child in node.children" 
         :key="child.id" 

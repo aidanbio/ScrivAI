@@ -20,7 +20,6 @@ export const useDocumentStore = defineStore('document', () => {
       status: 'Draft',
       children: [],
       parentId: null,
-      isFolder: true,
     };
     
     const chapter1: ScrivNode = {
@@ -31,7 +30,6 @@ export const useDocumentStore = defineStore('document', () => {
       status: 'Draft',
       children: [],
       parentId: rootFolder.id,
-      isFolder: false,
     };
 
     rootFolder.children.push(chapter1);
@@ -61,16 +59,15 @@ export const useDocumentStore = defineStore('document', () => {
     return undefined;
   };
 
-  const addNode = (parentId: string | null, isFolder: boolean = false) => {
+  const addNode = (parentId: string | null) => {
     const newNode: ScrivNode = {
       id: uuidv4(),
-      title: isFolder ? 'New Folder' : 'New Document',
+      title: 'New Item',
       body: '',
       synopsis: '',
       status: 'Draft',
       children: [],
       parentId: parentId,
-      isFolder: isFolder,
     };
 
     if (parentId) {
@@ -98,7 +95,6 @@ export const useDocumentStore = defineStore('document', () => {
       status: 'Draft',
       children: [],
       parentId: null,
-      isFolder: false,
       fileData: fileData,
       fileType: file.type
     };

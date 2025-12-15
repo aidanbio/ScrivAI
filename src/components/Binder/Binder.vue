@@ -5,15 +5,13 @@ import { ref } from 'vue';
 
 const store = useDocumentStore();
 
-const addRootFolder = () => {
-  store.addNode(null, true);
-};
-
-const addRootFile = () => {
-  store.addNode(null, false);
+const addRootItem = () => {
+  store.addNode(null);
 };
 
 const fileInput = ref<HTMLInputElement | null>(null);
+
+// ... existing code ...
 
 const triggerUpload = () => {
   fileInput.value?.click();
@@ -71,8 +69,7 @@ const onPaste = (e: ClipboardEvent) => {
     <div class="binder-header">
       <h2>Binder</h2>
       <div class="binder-actions">
-        <button @click="addRootFile" title="New Document">+Doc</button>
-        <button @click="addRootFolder" title="New Folder">+Folder</button>
+        <button @click="addRootItem" title="New Item">+ Item</button>
       </div>
     </div>
     <div class="binder-content">

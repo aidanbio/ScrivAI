@@ -9,7 +9,6 @@ export interface ScrivNode {
   status: NodeStatus;
   children: ScrivNode[];
   parentId: string | null;
-  isFolder: boolean;
   corkboardOptions?: {
     width?: number;
     height?: number;
