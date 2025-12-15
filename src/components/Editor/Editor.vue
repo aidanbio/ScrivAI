@@ -177,6 +177,40 @@ onBeforeUnmount(() => {
         <option value="2.5">2.5</option>
       </select>
 
+      <!-- Formatting Style (Heading/Subtitle) -->
+      <select
+        @change="(e) => {
+          if (!editor) return;
+          const value = (e.target as HTMLSelectElement).value;
+          if (value === 'p') {
+            editor.chain().focus().setParagraph().run();
+          } else if (value === 'h1') {
+            editor.chain().focus().toggleHeading({ level: 1 }).run();
+          } else if (value === 'h2') {
+            editor.chain().focus().toggleHeading({ level: 2 }).run();
+          } else if (value === 'h3') {
+            editor.chain().focus().toggleHeading({ level: 3 }).run();
+          } else if (value === 'subtitle') {
+            editor.chain().focus().toggleHeading({ level: 4 }).run();
+          }
+        }"
+        :value="
+          editor.isActive('heading', { level: 1 }) ? 'h1' :
+          editor.isActive('heading', { level: 2 }) ? 'h2' :
+          editor.isActive('heading', { level: 3 }) ? 'h3' :
+          editor.isActive('heading', { level: 4 }) ? 'subtitle' :
+          'p'
+        "
+        class="toolbar-select"
+        style="width: 100px;"
+      >
+        <option value="p">Normal</option>
+        <option value="h1">Heading 1</option>
+        <option value="h2">Heading 2</option>
+        <option value="h3">Heading 3</option>
+        <option value="subtitle">Subtitle</option>
+      </select>
+
       <div class="separator"></div>
 
       <!-- Basic Formatting -->
@@ -269,25 +303,6 @@ onBeforeUnmount(() => {
 
       <div class="separator"></div>
 
-      <!-- Headings -->
-      <button 
-        @click="editor.chain().focus().toggleHeading({ level: 1 }).run()" 
-        :class="{ 'is-active': editor.isActive('heading', { level: 1 }) }"
-      >
-        H1
-      </button>
-      <button 
-        @click="editor.chain().focus().toggleHeading({ level: 2 }).run()" 
-        :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }"
-      >
-        H2
-      </button>
-      <button 
-        @click="editor.chain().focus().toggleHeading({ level: 3 }).run()" 
-        :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }"
-      >
-        Subtitle
-      </button>
       <button 
         @click="editor.chain().focus().toggleBulletList().run()" 
         :class="{ 'is-active': editor.isActive('bulletList') }"
