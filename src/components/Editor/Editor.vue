@@ -17,6 +17,7 @@ import { LineHeight } from './extensions/LineHeight';
 import TableContextMenu from './TableContextMenu.vue';
 import { watch, onBeforeUnmount, ref } from 'vue';
 import { useDocumentStore } from '../../stores/documentStore';
+import type { ScrivNode } from '../../types';
 import { 
   Bold, 
   Italic, 
@@ -29,6 +30,12 @@ import {
   List, 
   ListOrdered 
 } from 'lucide-vue-next';
+
+const props = withDefaults(defineProps<{
+  mode?: 'editor' | 'scrivenings';
+}>(), {
+  mode: 'editor'
+});
 
 const store = useDocumentStore();
 
@@ -72,24 +79,57 @@ const editor = useEditor({
     TableCell,
   ],
   onUpdate: ({ editor }) => {
-    if (store.activeNodeId) {
+    if (store.activeNodeId && props.mode === 'editor') {
       store.updateNode(store.activeNodeId, { body: editor.getHTML() });
     }
   },
 });
 
+// Helper to gather content recursively
+const getScriveningsContent = (node: ScrivNode): string => {
+  let content = '';
+  
+  // Add own content if it exists
+  if (node.body) {
+    content += `
+      <div class="scrivenings-item" data-id="${node.id}">
+        ${node.body}
+      </div>
+    `;
+  }
+  
+  if (node.children && node.children.length > 0) {
+    for (const child of node.children) {
+      // Add separator
+      content += '<hr class="scrivenings-separator">';
+      content += getScriveningsContent(child);
+    }
+  }
+  
+  return content;
+};
+
 // Watch for active node changes to update editor content
 watch(
-  () => store.activeNode,
-  (node) => {
+  [() => store.activeNode, () => props.mode],
+  ([node, mode]) => {
     if (!editor.value) return;
 
     if (node) {
-      // Unified view: Always show node's content
-      if (editor.value.getHTML() !== node.body) {
-        editor.value.commands.setContent(node.body);
+      if (mode === 'scrivenings') {
+        const content = getScriveningsContent(node);
+        // Scrivenings mode: Show composite content
+        if (editor.value.getHTML() !== content) {
+          editor.value.commands.setContent(content);
+        }
+        editor.value.setEditable(false);
+      } else {
+        // Unified view: Always show node's content
+        if (editor.value.getHTML() !== node.body) {
+          editor.value.commands.setContent(node.body);
+        }
+        editor.value.setEditable(true);
       }
-      editor.value.setEditable(true);
     } else {
       // No active node
       editor.value.commands.setContent('');
@@ -499,5 +539,15 @@ onBeforeUnmount(() => {
   opacity: 1;
   background-color: #555;
   border-radius: 0.3rem;
+}
+/* Scrivenings Mode Styling */
+:deep(.scrivenings-separator) {
+  border: none;
+  border-top: 2px dashed #ccc;
+  margin: 20px 0;
+}
+
+:deep(.scrivenings-item) {
+  position: relative;
 }
 </style>

@@ -7,11 +7,11 @@ import Corkboard from './components/Corkboard/Corkboard.vue';
 import { useDocumentStore } from './stores/documentStore';
 
 const store = useDocumentStore();
-const viewMode = ref<'editor' | 'corkboard'>('editor');
+const viewMode = ref<'editor' | 'corkboard' | 'scrivenings'>('editor');
 
 const activeNode = computed(() => store.activeNode);
 
-const toggleView = (mode: 'editor' | 'corkboard') => {
+const toggleView = (mode: 'editor' | 'corkboard' | 'scrivenings') => {
   viewMode.value = mode;
 };
 
@@ -75,6 +75,14 @@ const handleImport = () => {
             📄
           </button>
           <button 
+            :class="{ active: viewMode === 'scrivenings' }" 
+            @click="toggleView('scrivenings')"
+            title="Scrivenings Mode"
+            :disabled="!activeNode?.children.length"
+          >
+            📑
+          </button>
+          <button 
             :class="{ active: viewMode === 'corkboard' }" 
             @click="toggleView('corkboard')"
             title="Corkboard View"
@@ -88,11 +96,12 @@ const handleImport = () => {
         </div>
         <div class="current-doc-title">
           {{ activeNode?.title || 'ScrivAI' }}
+          <span v-if="viewMode === 'scrivenings'" style="font-weight: normal; font-size: 0.8em; margin-left: 8px;">(Scrivenings)</span>
         </div>
       </div>
       
       <div class="content-area">
-        <Editor v-if="viewMode === 'editor'" />
+        <Editor v-if="viewMode === 'editor' || viewMode === 'scrivenings'" :mode="viewMode" />
         <Corkboard v-else />
       </div>
     </main>
