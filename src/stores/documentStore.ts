@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { useNotificationStore } from './notificationStore';
 import type { ScrivNode } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -11,31 +12,7 @@ export const useDocumentStore = defineStore('document', () => {
   const draggedNodeId = ref<string | null>(null);
 
   // Initial dummy data
-  const init = () => {
-    const rootFolder: ScrivNode = {
-      id: uuidv4(),
-      title: 'Draft',
-      body: '',
-      synopsis: 'Main draft folder',
-      status: 'Draft',
-      children: [],
-      parentId: null,
-    };
-    
-    const chapter1: ScrivNode = {
-      id: uuidv4(),
-      title: 'Chapter 1',
-      body: '<p>It was a dark and stormy night...</p>',
-      synopsis: 'Introduction to the protagonist',
-      status: 'Draft',
-      children: [],
-      parentId: rootFolder.id,
-    };
-
-    rootFolder.children.push(chapter1);
-    nodes.value.push(rootFolder);
-    activeNodeId.value = chapter1.id;
-  };
+  // Initial data logic moved to bottom
 
   // Getters
   const activeNode = computed(() => {
@@ -212,13 +189,11 @@ export const useDocumentStore = defineStore('document', () => {
     if (!targetId) {
       // Move to root
       draggedNode.parentId = null;
-      draggedNode.parentId = null;
       targetList.push(draggedNode);
       return;
     }
 
     // Helper to insert
-    // Re-implementing insertion logic
     const insertRecursive = (list: ScrivNode[], parentId: string | null): boolean => {
       // Check if target is in this list
       const targetIndex = list.findIndex(n => n.id === targetId);
@@ -279,6 +254,54 @@ export const useDocumentStore = defineStore('document', () => {
     }
   };
 
+
+
+  const saveToLocalStorage = () => {
+    localStorage.setItem('scrivai-project', exportProject());
+    console.log('Project auto-saved to LocalStorage');
+    const notificationStore = useNotificationStore();
+    notificationStore.addNotification('Auto-saved successfully', 'success', 2000);
+  };
+
+  const loadFromLocalStorage = () => {
+    const saved = localStorage.getItem('scrivai-project');
+    if (saved) {
+      importProject(saved);
+      console.log('Project loaded from LocalStorage');
+      return true;
+    }
+    return false;
+  };
+
+  // Initial dummy data
+  const init = () => {
+    if (loadFromLocalStorage()) return;
+
+    const rootFolder: ScrivNode = {
+      id: uuidv4(),
+      title: 'Draft',
+      body: '',
+      synopsis: 'Main draft folder',
+      status: 'Draft',
+      children: [],
+      parentId: null,
+    };
+    
+    const chapter1: ScrivNode = {
+      id: uuidv4(),
+      title: 'Chapter 1',
+      body: '<p>It was a dark and stormy night...</p>',
+      synopsis: 'Introduction to the protagonist',
+      status: 'Draft',
+      children: [],
+      parentId: rootFolder.id,
+    };
+
+    rootFolder.children.push(chapter1);
+    nodes.value.push(rootFolder);
+    activeNodeId.value = chapter1.id;
+  };
+
   // Initialize store
   init();
 
@@ -299,6 +322,7 @@ export const useDocumentStore = defineStore('document', () => {
     draggedNodeId,
     moveNode,
     exportProject,
-    importProject
+    importProject,
+    saveToLocalStorage
   };
 });

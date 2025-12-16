@@ -4,6 +4,7 @@ import Binder from './components/Binder/Binder.vue';
 import Editor from './components/Editor/Editor.vue';
 import Inspector from './components/Inspector/Inspector.vue';
 import Corkboard from './components/Corkboard/Corkboard.vue';
+import ToastNotification from './components/Common/ToastNotification.vue';
 import { useDocumentStore } from './stores/documentStore';
 
 const store = useDocumentStore();
@@ -109,6 +110,8 @@ const handleImport = () => {
     <aside class="inspector-pane">
       <Inspector />
     </aside>
+    
+    <ToastNotification />
   </div>
 </template>
 

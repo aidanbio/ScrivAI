@@ -83,6 +83,9 @@ const editor = useEditor({
       store.updateNode(store.activeNodeId, { body: editor.getHTML() });
     }
   },
+  onBlur: () => {
+    store.saveToLocalStorage();
+  },
 });
 
 // Helper to gather content recursively
