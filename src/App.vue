@@ -18,11 +18,10 @@ const toggleView = (mode: 'editor' | 'corkboard' | 'scrivenings') => {
 
 watch(activeNode, (newNode) => {
   if (newNode) {
-    // Optional: Default to Editor, or remember last view
-    // For now, let's just keep current view or maybe default to editor
-    // if viewMode logic needs adjustment.
-    // Actually, Scrivener keeps view per item often, but simplest is:
-    // Don't force switch.
+    // If in Scrivenings mode and navigating to a leaf node (no children), switch to editor view
+    if (viewMode.value === 'scrivenings' && (!newNode.children || newNode.children.length === 0)) {
+       viewMode.value = 'editor';
+    }
   }
 });
 

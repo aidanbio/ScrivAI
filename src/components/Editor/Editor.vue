@@ -14,6 +14,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { FontSize } from './extensions/FontSize';
 import { LineHeight } from './extensions/LineHeight';
+import { ImageExtension } from './extensions/ImageExtension';
 import TableContextMenu from './TableContextMenu.vue';
 import { watch, onBeforeUnmount, ref } from 'vue';
 import { useDocumentStore } from '../../stores/documentStore';
@@ -28,7 +29,8 @@ import {
   AlignRight, 
   AlignJustify, 
   List, 
-  ListOrdered 
+  ListOrdered,
+  Image as ImageIcon
 } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
@@ -41,6 +43,7 @@ const store = useDocumentStore();
 
 const showContextMenu = ref(false);
 const contextMenuPos = ref({ x: 0, y: 0 });
+const fileInput = ref<HTMLInputElement | null>(null);
 
 const handleContextMenu = (event: MouseEvent) => {
   if (!editor.value) return;
@@ -57,6 +60,26 @@ const handleContextMenu = (event: MouseEvent) => {
   }
 };
 
+const handleImageUpload = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (result && editor.value) {
+        editor.value.chain().focus().setImage({ src: result }).run();
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+  input.value = ''; // Reset input
+};
+
+const triggerImageUpload = () => {
+  fileInput.value?.click();
+};
+
 const editor = useEditor({
   content: store.activeNode?.body || '',
   extensions: [
@@ -66,7 +89,7 @@ const editor = useEditor({
     Color,
     Underline,
     TextAlign.configure({
-      types: ['heading', 'paragraph'],
+      types: ['heading', 'paragraph', 'image'],
     }),
     FontSize,
     LineHeight,
@@ -77,7 +100,72 @@ const editor = useEditor({
     TableRow,
     TableHeader,
     TableCell,
+    ImageExtension,
   ],
+  editorProps: {
+    handlePaste: (view, event) => {
+      const items = Array.from(event.clipboardData?.items || []);
+      const imageItem = items.find(item => item.type.indexOf('image') === 0);
+
+      if (imageItem) {
+        event.preventDefault();
+        const file = imageItem.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result as string;
+            if (result) {
+              const { schema } = view.state;
+              if (schema.nodes.image) {
+                const node = schema.nodes.image.create({ src: result });
+                const transaction = view.state.tr.replaceSelectionWith(node);
+                view.dispatch(transaction);
+              }
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+        return true;
+      }
+      return false;
+    },
+    handleDrop: (view, event, _slice, moved) => {
+      // If the view is currently dragging something, it's an internal move. 
+      // Return false to let Tiptap/ProseMirror handle the move natively.
+      if ((view as any).dragging) {
+        return false;
+      }
+
+      if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+        const file = event.dataTransfer.files[0];
+        if (file && file.type.indexOf('image') === 0) {
+          event.preventDefault();
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result as string;
+            if (result) {
+              const { schema } = view.state;
+              if (schema.nodes.image) {
+                 // Create image with default center alignment
+                 const node = schema.nodes.image.create({ 
+                   src: result,
+                   textAlign: 'center' 
+                 });
+                 const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY });
+                 if (coordinates) {
+                    const transaction = view.state.tr.insert(coordinates.pos, node);
+                    view.dispatch(transaction);
+                 }
+              }
+            }
+          };
+          reader.readAsDataURL(file);
+          return true;
+        }
+      }
+      return false;
+    }
+  },
   onUpdate: ({ editor }) => {
     if (store.activeNodeId && props.mode === 'editor') {
       store.updateNode(store.activeNodeId, { body: editor.getHTML() });
@@ -164,8 +252,8 @@ onBeforeUnmount(() => {
     <div v-if="editor" class="toolbar">
       <!-- Font Family -->
       <select 
-        @change="editor.chain().focus().setFontFamily(($event.target as HTMLSelectElement).value).run()"
-        :value="editor.getAttributes('textStyle').fontFamily || ''"
+        @change="editor?.chain().focus().setFontFamily(($event.target as HTMLSelectElement).value).run()"
+        :value="editor?.getAttributes('textStyle').fontFamily || ''"
         class="toolbar-select"
       >
         <option value="" disabled selected>Font</option>
@@ -182,8 +270,8 @@ onBeforeUnmount(() => {
 
       <!-- Font Size -->
       <select 
-        @change="editor.chain().focus().setFontSize(($event.target as HTMLSelectElement).value).run()"
-        :value="editor.getAttributes('textStyle').fontSize || ''"
+        @change="editor?.chain().focus().setFontSize(($event.target as HTMLSelectElement).value).run()"
+        :value="editor?.getAttributes('textStyle').fontSize || ''"
         class="toolbar-select"
       >
         <option value="" disabled selected>Size</option>
@@ -198,8 +286,8 @@ onBeforeUnmount(() => {
 
       <!-- Line Height -->
       <select 
-        @change="editor.chain().focus().setLineHeight(($event.target as HTMLSelectElement).value).run()"
-        :value="editor.getAttributes('paragraph').lineHeight || editor.getAttributes('heading').lineHeight || '1.5'"
+        @change="editor?.chain().focus().setLineHeight(($event.target as HTMLSelectElement).value).run()"
+        :value="editor?.getAttributes('paragraph').lineHeight || editor?.getAttributes('heading').lineHeight || '1.5'"
         class="toolbar-select"
       >
         <option value="" disabled>Line Height</option>
@@ -248,28 +336,28 @@ onBeforeUnmount(() => {
 
       <!-- Basic Formatting -->
       <button 
-        @click="editor.chain().focus().toggleBold().run()" 
+        @click="editor?.chain().focus().toggleBold().run()" 
         :class="{ 'is-active': editor.isActive('bold') }"
         title="Bold"
       >
         <Bold :size="16" />
       </button>
       <button 
-        @click="editor.chain().focus().toggleItalic().run()" 
+        @click="editor?.chain().focus().toggleItalic().run()" 
         :class="{ 'is-active': editor.isActive('italic') }"
         title="Italic"
       >
         <Italic :size="16" />
       </button>
       <button 
-        @click="editor.chain().focus().toggleUnderline().run()" 
+        @click="editor?.chain().focus().toggleUnderline().run()" 
         :class="{ 'is-active': editor.isActive('underline') }"
         title="Underline"
       >
         <UnderlineIcon :size="16" />
       </button>
       <button 
-        @click="editor.chain().focus().toggleStrike().run()" 
+        @click="editor?.chain().focus().toggleStrike().run()" 
         :class="{ 'is-active': editor.isActive('strike') }"
         title="Strike"
       >
@@ -280,28 +368,28 @@ onBeforeUnmount(() => {
 
       <!-- Alignment -->
       <button 
-        @click="editor.chain().focus().setTextAlign('left').run()" 
+        @click="editor?.chain().focus().setTextAlign('left').run()" 
         :class="{ 'is-active': editor.isActive({ textAlign: 'left' }) }"
         title="Align Left"
       >
         <AlignLeft :size="16" />
       </button>
       <button 
-        @click="editor.chain().focus().setTextAlign('center').run()" 
+        @click="editor?.chain().focus().setTextAlign('center').run()" 
         :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }"
         title="Align Center"
       >
         <AlignCenter :size="16" />
       </button>
       <button 
-        @click="editor.chain().focus().setTextAlign('right').run()" 
+        @click="editor?.chain().focus().setTextAlign('right').run()" 
         :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }"
         title="Align Right"
       >
         <AlignRight :size="16" />
       </button>
       <button 
-        @click="editor.chain().focus().setTextAlign('justify').run()" 
+        @click="editor?.chain().focus().setTextAlign('justify').run()" 
         :class="{ 'is-active': editor.isActive({ textAlign: 'justify' }) }"
         title="Justify"
       >
@@ -313,23 +401,23 @@ onBeforeUnmount(() => {
       <!-- Color -->
       <input 
         type="color" 
-        @input="editor.chain().focus().setColor(($event.target as HTMLInputElement).value).run()" 
-        :value="editor.getAttributes('textStyle').color || '#000000'"
+        @input="editor?.chain().focus().setColor(($event.target as HTMLInputElement).value).run()" 
+        :value="editor?.getAttributes('textStyle').color || '#000000'"
         title="Text Color"
         class="color-picker"
       >
 
       <input 
         type="color" 
-        @input="editor.chain().focus().setHighlight({ color: ($event.target as HTMLInputElement).value }).run()" 
-        :value="editor.getAttributes('highlight').color || '#FFFFFF'"
+        @input="editor?.chain().focus().setHighlight({ color: ($event.target as HTMLInputElement).value }).run()" 
+        :value="editor?.getAttributes('highlight').color || '#FFFFFF'"
         title="Background Color"
         class="color-picker"
       >
       <button 
-        @click="editor.chain().focus().unsetHighlight().unsetColor().run()"
+        @click="editor?.chain().focus().unsetHighlight().unsetColor().run()"
         title="Clear Colors"
-        :disabled="!editor.isActive('highlight') && !editor.getAttributes('textStyle').color"
+        :disabled="!editor?.isActive('highlight') && !editor?.getAttributes('textStyle').color"
       >
         ✕
       </button>
@@ -337,14 +425,14 @@ onBeforeUnmount(() => {
       <div class="separator"></div>
 
       <button 
-        @click="editor.chain().focus().toggleBulletList().run()" 
+        @click="editor?.chain().focus().toggleBulletList().run()" 
         :class="{ 'is-active': editor.isActive('bulletList') }"
         title="Bullet List"
       >
         <List :size="16" />
       </button>
       <button 
-        @click="editor.chain().focus().toggleOrderedList().run()" 
+        @click="editor?.chain().focus().toggleOrderedList().run()" 
         :class="{ 'is-active': editor.isActive('orderedList') }"
         title="Ordered List"
       >
@@ -354,10 +442,24 @@ onBeforeUnmount(() => {
       <div class="separator"></div>
 
       <button 
-        @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()"
+        @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()"
       >
         Insert Table
       </button>
+      
+      <div class="separator"></div>
+
+      <!-- Image Upload -->
+      <button @click="triggerImageUpload" title="Insert Image">
+        <ImageIcon :size="16" />
+      </button>
+      <input 
+        type="file" 
+        ref="fileInput" 
+        @change="handleImageUpload" 
+        accept="image/*" 
+        style="display: none"
+      >
     </div>
     
     <bubble-menu 
@@ -419,6 +521,9 @@ onBeforeUnmount(() => {
   cursor: pointer;
   border-radius: 4px;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .toolbar button.is-active {
@@ -553,4 +658,6 @@ onBeforeUnmount(() => {
 :deep(.scrivenings-item) {
   position: relative;
 }
+
+
 </style>
