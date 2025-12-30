@@ -14,6 +14,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { FontSize } from './extensions/FontSize';
 import { LineHeight } from './extensions/LineHeight';
+import { CustomImage } from './extensions/CustomImage';
 import TableContextMenu from './TableContextMenu.vue';
 import { watch, onBeforeUnmount, ref } from 'vue';
 import { useDocumentStore } from '../../stores/documentStore';
@@ -28,7 +29,8 @@ import {
   AlignRight, 
   AlignJustify, 
   List, 
-  ListOrdered 
+  ListOrdered,
+  Image as ImageIcon 
 } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
@@ -41,6 +43,7 @@ const store = useDocumentStore();
 
 const showContextMenu = ref(false);
 const contextMenuPos = ref({ x: 0, y: 0 });
+const fileInput = ref<HTMLInputElement | null>(null);
 
 const handleContextMenu = (event: MouseEvent) => {
   if (!editor.value) return;
@@ -57,27 +60,88 @@ const handleContextMenu = (event: MouseEvent) => {
   }
 };
 
-const editor = useEditor({
-  content: store.activeNode?.body || '',
-  extensions: [
-    StarterKit,
-    TextStyle,
-    FontFamily,
-    Color,
-    Underline,
-    TextAlign.configure({
-      types: ['heading', 'paragraph'],
-    }),
-    FontSize,
-    LineHeight,
-    Highlight.configure({ multicolor: true }),
-    Table.configure({
-      resizable: true,
-    }),
-    TableRow,
-    TableHeader,
-    TableCell,
-  ],
+const addImage = () => {
+  fileInput.value?.click();
+};
+
+  const handleFileChange = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      // Use Blob URL instead of createObjectURL
+      const src = URL.createObjectURL(file);
+      if (editor.value) {
+        editor.value.chain().focus().setImage({ src }).run();
+      }
+    }
+    // Reset input value so same file can be selected again if needed
+    input.value = '';
+  };
+
+  const editor = useEditor({
+    content: store.activeNode?.body || '',
+    extensions: [
+      StarterKit,
+      TextStyle,
+      FontFamily,
+      Color,
+      Underline,
+      TextAlign.configure({
+        types: ['heading', 'paragraph', 'image'],
+      }),
+      FontSize,
+      LineHeight,
+      Highlight.configure({ multicolor: true }),
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      CustomImage.configure({
+        allowBase64: true, // We still allow it, effectively generic src
+        HTMLAttributes: {
+          class: 'custom-image',
+        },
+      }),
+    ],
+    editorProps: {
+      handlePaste: (view, event, _slice) => {
+        const items = event.clipboardData?.items;
+        if (items) {
+          for (const item of items) {
+            if (item.type.indexOf('image') === 0) {
+              const file = item.getAsFile();
+              if (file) {
+                const src = URL.createObjectURL(file);
+                if (view.state.schema.nodes.image) {
+                  view.dispatch(view.state.tr.replaceSelectionWith(
+                    view.state.schema.nodes.image.create({ src })
+                  ));
+                }
+                return true; // Handled
+              }
+            }
+          }
+        }
+        return false; // Not handled
+      },
+      handleDrop: (view, event, _slice, moved) => {
+        if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+          const file = event.dataTransfer.files[0];
+          if (file && file.type.indexOf('image') === 0) {
+            const src = URL.createObjectURL(file);
+            const { schema } = view.state;
+            const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY });
+            if (coordinates && schema.nodes.image) {
+               view.dispatch(view.state.tr.insert(coordinates.pos, schema.nodes.image.create({ src })));
+            }
+            return true; // Handled
+          }
+        }
+        return false; // Not handled
+      }
+    },
   onUpdate: ({ editor }) => {
     if (store.activeNodeId && props.mode === 'editor') {
       store.updateNode(store.activeNodeId, { body: editor.getHTML() });
@@ -355,9 +419,23 @@ onBeforeUnmount(() => {
 
       <button 
         @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()"
+        title="Insert Table"
       >
         Insert Table
       </button>
+
+      <!-- Image Upload -->
+      <button @click="addImage" title="Insert Image">
+        <ImageIcon :size="16" />
+      </button>
+      <input 
+        type="file" 
+        ref="fileInput" 
+        @change="handleFileChange" 
+        accept="image/*" 
+        style="display: none;"
+      >
+
     </div>
     
     <bubble-menu 

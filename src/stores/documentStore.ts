@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { useNotificationStore } from './notificationStore';
 import type { ScrivNode } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import { convertContentToBlobs, convertContentToBase64 } from '../utils/imageUtils';
 
 export const useDocumentStore = defineStore('document', () => {
   const nodes = ref<ScrivNode[]>([]);
@@ -256,8 +257,36 @@ export const useDocumentStore = defineStore('document', () => {
 
 
 
-  const saveToLocalStorage = () => {
-    localStorage.setItem('scrivai-project', exportProject());
+  const saveToLocalStorage = async () => {
+    // We need to clone the nodes/trunkNodes and convert any Blob URLs to Base64
+    // Since we can't deep clone easily with conversion, we'll traverse and convert
+    
+    const nodesCopy = JSON.parse(JSON.stringify(nodes.value));
+    const trunkNodesCopy = JSON.parse(JSON.stringify(trunkNodes.value));
+    // Since we just did a JSON clone, we don't have Blobs yet, but the current state 
+    // MIGHT have Blob URLs (if we are saving what is in memory).
+    // Actually, `nodes.value` in memory has Blob URLs. JSON.stringify keeps them as string "blob:...".
+    
+    // Helper to traverse and convert
+    const processNodes = async (list: any[]) => {
+      for (const node of list) {
+        if (node.body) {
+          node.body = await convertContentToBase64(node.body);
+        }
+        if (node.children && node.children.length > 0) {
+          await processNodes(node.children);
+        }
+      }
+    };
+
+    await processNodes(nodesCopy);
+    await processNodes(trunkNodesCopy);
+
+    localStorage.setItem('scrivai-project', JSON.stringify({
+      binder: nodesCopy,
+      trunk: trunkNodesCopy
+    }, null, 2));
+
     console.log('Project auto-saved to LocalStorage');
     const notificationStore = useNotificationStore();
     notificationStore.addNotification('Auto-saved successfully', 'success', 2000);
@@ -266,7 +295,25 @@ export const useDocumentStore = defineStore('document', () => {
   const loadFromLocalStorage = () => {
     const saved = localStorage.getItem('scrivai-project');
     if (saved) {
+      // Synchronous import as base, but we might want to convert to Blobs for better performance?
+      // Yes, the plan says "Implement Blob conversion for Loading"
       importProject(saved);
+      
+      // Now convert in-memory nodes to use Blobs
+      const processNodes = (list: ScrivNode[]) => {
+        for (const node of list) {
+          if (node.body) {
+            node.body = convertContentToBlobs(node.body);
+          }
+          if (node.children.length > 0) {
+            processNodes(node.children);
+          }
+        }
+      };
+      
+      processNodes(nodes.value);
+      processNodes(trunkNodes.value);
+
       console.log('Project loaded from LocalStorage');
       return true;
     }
