@@ -18,6 +18,8 @@ import { CustomImage } from './extensions/CustomImage';
 import TableContextMenu from './TableContextMenu.vue';
 import { watch, onBeforeUnmount, ref } from 'vue';
 import { useDocumentStore } from '../../stores/documentStore';
+import { useNotificationStore } from '../../stores/notificationStore';
+import { compressImage } from '../../utils/imageUtils';
 import type { ScrivNode } from '../../types';
 import { 
   Bold, 
@@ -40,6 +42,7 @@ const props = withDefaults(defineProps<{
 });
 
 const store = useDocumentStore();
+const notificationStore = useNotificationStore();
 
 const showContextMenu = ref(false);
 const contextMenuPos = ref({ x: 0, y: 0 });
@@ -64,14 +67,29 @@ const addImage = () => {
   fileInput.value?.click();
 };
 
-  const handleFileChange = (event: Event) => {
+  const handleFileChange = async (event: Event) => {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
       const file = input.files[0];
-      // Use Blob URL instead of createObjectURL
-      const src = URL.createObjectURL(file);
-      if (editor.value) {
-        editor.value.chain().focus().setImage({ src }).run();
+      try {
+        const { blob, wasCompressed, originalSize } = await compressImage(file);
+        
+        if (wasCompressed) {
+          const originalMB = (originalSize / (1024 * 1024)).toFixed(2);
+          notificationStore.addNotification(
+            `이미지 용량이 5MB를 초과하여 리사이징 후 업로드됩니다. (기존 용량 ${originalMB}MB)`,
+            'info',
+            5000
+          );
+        }
+
+        const src = URL.createObjectURL(blob);
+        if (editor.value) {
+          editor.value.chain().focus().setImage({ src }).run();
+        }
+      } catch (error) {
+        console.error('Image compression failed', error);
+        notificationStore.addNotification('이미지 업로드 중 오류가 발생했습니다.', 'error');
       }
     }
     // Reset input value so same file can be selected again if needed
@@ -113,12 +131,29 @@ const addImage = () => {
             if (item.type.indexOf('image') === 0) {
               const file = item.getAsFile();
               if (file) {
-                const src = URL.createObjectURL(file);
-                if (view.state.schema.nodes.image) {
-                  view.dispatch(view.state.tr.replaceSelectionWith(
-                    view.state.schema.nodes.image.create({ src })
-                  ));
-                }
+                compressImage(file).then(({ blob, wasCompressed, originalSize }) => {
+                  if (wasCompressed) {
+                     const originalMB = (originalSize / (1024 * 1024)).toFixed(2);
+                     notificationStore.addNotification(
+                      `이미지 용량이 5MB를 초과하여 리사이징 후 업로드됩니다. (기존 용량 ${originalMB}MB)`,
+                      'info',
+                      5000
+                    );
+                  }
+                  const src = URL.createObjectURL(blob);
+                  if (view.state.schema.nodes.image) {
+                     // We need to insert at current selection since this is async
+                     // But paste handler expects synchronous return or handled handling.
+                     // For async, we can insert manually.
+                     const { tr } = view.state;
+                     const transaction = tr.replaceSelectionWith(
+                        view.state.schema.nodes.image.create({ src })
+                     );
+                     view.dispatch(transaction);
+                  }
+                }).catch(err => {
+                   console.error('Paste compression failed', err);
+                });
                 return true; // Handled
               }
             }
@@ -130,12 +165,26 @@ const addImage = () => {
         if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
           const file = event.dataTransfer.files[0];
           if (file && file.type.indexOf('image') === 0) {
-            const src = URL.createObjectURL(file);
-            const { schema } = view.state;
-            const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY });
-            if (coordinates && schema.nodes.image) {
-               view.dispatch(view.state.tr.insert(coordinates.pos, schema.nodes.image.create({ src })));
-            }
+             const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY });
+             
+             compressImage(file).then(({ blob, wasCompressed, originalSize }) => {
+                if (wasCompressed) {
+                   const originalMB = (originalSize / (1024 * 1024)).toFixed(2);
+                   notificationStore.addNotification(
+                    `이미지 용량이 5MB를 초과하여 리사이징 후 업로드됩니다. (기존 용량 ${originalMB}MB)`,
+                    'info',
+                    5000
+                  );
+                }
+                const src = URL.createObjectURL(blob);
+                const { schema } = view.state;
+                if (coordinates && schema.nodes.image) {
+                   view.dispatch(view.state.tr.insert(coordinates.pos, schema.nodes.image.create({ src })));
+                }
+             }).catch(err => {
+                console.error('Drop compression failed', err);
+             });
+
             return true; // Handled
           }
         }
