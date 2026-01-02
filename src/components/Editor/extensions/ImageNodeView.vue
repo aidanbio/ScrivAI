@@ -55,6 +55,7 @@ onUnmounted(() => {
           :alt="node.attrs.alt"
           :title="node.attrs.title"
           class="image-content"
+          draggable="false"
         />
         <div 
           v-if="editor.isEditable"
