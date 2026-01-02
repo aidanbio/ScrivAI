@@ -2,8 +2,11 @@
 import { computed, ref } from 'vue';
 import { useDocumentStore } from '../../stores/documentStore';
 import type { NodeStatus } from '../../types';
+import { compressImage, blobToDataURL } from '../../utils/imageUtils';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 const store = useDocumentStore();
+const notificationStore = useNotificationStore();
 const fileInput = ref<HTMLInputElement | null>(null);
 
 const activeNode = computed(() => store.selectedNode || store.activeNode);
@@ -29,19 +32,36 @@ const updateTitle = (e: Event) => {
   }
 };
 
-const processImage = (file: File) => {
+const processImage = async (file: File) => {
   if (!file.type.startsWith('image/')) {
     alert('Please upload an image file.');
     return;
   }
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    if (e.target?.result && activeNode.value) {
-      store.updateNode(activeNode.value.id, { synopsisImage: e.target.result as string });
+  try {
+    const { blob, wasCompressed, originalSize } = await compressImage(file);
+    
+    if (wasCompressed) {
+      const originalMB = (originalSize / (1024 * 1024)).toFixed(2);
+      notificationStore.addNotification(
+        `이미지 용량이 5MB를 초과하여 리사이징 후 업로드됩니다. (기존 용량 ${originalMB}MB)`,
+        'info',
+        5000
+      );
     }
-  };
-  reader.readAsDataURL(file);
+    
+    // Convert blob to base64 for synopsis storage (assuming string based storage)
+    // Or if we can store as blob url, but persistence might require base64
+    // The previous code used readAsDataURL so it was storing Base64.
+    // We will stick to that.
+    const dataUrl = await blobToDataURL(blob);
+    if (activeNode.value) {
+      store.updateNode(activeNode.value.id, { synopsisImage: dataUrl });
+    }
+  } catch (error) {
+    console.error('Synopsis image processing failed', error);
+    notificationStore.addNotification('이미지 업로드 중 오류가 발생했습니다.', 'error');
+  }
 };
 
 const handleImageUpload = (e: Event) => {
