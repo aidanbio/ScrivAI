@@ -3,7 +3,8 @@ import { ref, computed } from 'vue';
 import { useNotificationStore } from './notificationStore';
 import type { ScrivNode } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { convertContentToBlobs, convertContentToBase64 } from '../utils/imageUtils';
+import { saveItemToDB, getItemFromDB } from '../utils/idb';
+import { prepareContentForSave, restoreImagesFromDB } from '../utils/imageUtils';
 
 export const useDocumentStore = defineStore('document', () => {
   const nodes = ref<ScrivNode[]>([]);
@@ -257,72 +258,76 @@ export const useDocumentStore = defineStore('document', () => {
 
 
 
-  const saveToLocalStorage = async () => {
-    // We need to clone the nodes/trunkNodes and convert any Blob URLs to Base64
-    // Since we can't deep clone easily with conversion, we'll traverse and convert
-    
+  // ... (keeping existing code)
+
+  // ... (keeping existing code)
+
+  const saveToIndexedDB = async () => {
+    // Clone nodes to avoid mutating robust state during preparation
+    // JSON parse/stringify is a quick deep clone for data objects
     const nodesCopy = JSON.parse(JSON.stringify(nodes.value));
     const trunkNodesCopy = JSON.parse(JSON.stringify(trunkNodes.value));
-    // Since we just did a JSON clone, we don't have Blobs yet, but the current state 
-    // MIGHT have Blob URLs (if we are saving what is in memory).
-    // Actually, `nodes.value` in memory has Blob URLs. JSON.stringify keeps them as string "blob:...".
     
-    // Helper to traverse and convert
-    const processNodes = async (list: any[]) => {
+    // Helper to traverse and prepare
+    const processNodes = (list: any[]) => {
       for (const node of list) {
         if (node.body) {
-          node.body = await convertContentToBase64(node.body);
+          node.body = prepareContentForSave(node.body);
         }
         if (node.children && node.children.length > 0) {
-          await processNodes(node.children);
+          processNodes(node.children);
         }
       }
     };
 
-    await processNodes(nodesCopy);
-    await processNodes(trunkNodesCopy);
+    processNodes(nodesCopy);
+    processNodes(trunkNodesCopy);
 
-    localStorage.setItem('scrivai-project', JSON.stringify({
+    await saveItemToDB('current_project', {
       binder: nodesCopy,
       trunk: trunkNodesCopy
-    }, null, 2));
+    });
 
-    console.log('Project auto-saved to LocalStorage');
+    console.log('Project auto-saved to IndexedDB');
     const notificationStore = useNotificationStore();
     notificationStore.addNotification('Auto-saved successfully', 'success', 2000);
   };
 
-  const loadFromLocalStorage = () => {
-    const saved = localStorage.getItem('scrivai-project');
-    if (saved) {
-      // Synchronous import as base, but we might want to convert to Blobs for better performance?
-      // Yes, the plan says "Implement Blob conversion for Loading"
-      importProject(saved);
-      
-      // Now convert in-memory nodes to use Blobs
-      const processNodes = (list: ScrivNode[]) => {
-        for (const node of list) {
-          if (node.body) {
-            node.body = convertContentToBlobs(node.body);
-          }
-          if (node.children.length > 0) {
-            processNodes(node.children);
-          }
-        }
-      };
-      
-      processNodes(nodes.value);
-      processNodes(trunkNodes.value);
+  const loadFromIndexedDB = async (): Promise<boolean> => {
+    try {
+      const project = await getItemFromDB('current_project');
+      if (project) {
+        nodes.value = project.binder || [];
+        trunkNodes.value = project.trunk || [];
+        activeNodeId.value = null;
 
-      console.log('Project loaded from LocalStorage');
-      return true;
+        // Restore images (blob refs)
+        const processNodes = async (list: ScrivNode[]) => {
+          for (const node of list) {
+            if (node.body) {
+              node.body = await restoreImagesFromDB(node.body);
+            }
+            if (node.children.length > 0) {
+              await processNodes(node.children);
+            }
+          }
+        };
+
+        await processNodes(nodes.value);
+        await processNodes(trunkNodes.value);
+
+        console.log('Project loaded from IndexedDB');
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to load project from IndexedDB', error);
     }
     return false;
   };
 
   // Initial dummy data
-  const init = () => {
-    if (loadFromLocalStorage()) return;
+  const init = async () => {
+    if (await loadFromIndexedDB()) return;
 
     const rootFolder: ScrivNode = {
       id: uuidv4(),
@@ -370,6 +375,7 @@ export const useDocumentStore = defineStore('document', () => {
     moveNode,
     exportProject,
     importProject,
-    saveToLocalStorage
+    saveToIndexedDB,
+    loadFromIndexedDB
   };
 });

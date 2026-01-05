@@ -20,6 +20,8 @@ import { watch, onBeforeUnmount, ref } from 'vue';
 import { useDocumentStore } from '../../stores/documentStore';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { compressImage } from '../../utils/imageUtils';
+import { saveImageToDB } from '../../utils/idb';
+import { v4 as uuidv4 } from 'uuid';
 import type { ScrivNode } from '../../types';
 import { 
   Bold, 
@@ -83,12 +85,19 @@ const addImage = () => {
           );
         }
 
+        const imageId = uuidv4();
+        await saveImageToDB(imageId, blob);
         const src = URL.createObjectURL(blob);
+        
         if (editor.value) {
-          editor.value.chain().focus().setImage({ src }).run();
+          // Use insertContent for custom attributes if setImage is strict
+           editor.value.chain().focus().insertContent({
+            type: 'image',
+            attrs: { src, imageId }
+          }).run();
         }
       } catch (error) {
-        console.error('Image compression failed', error);
+        console.error('Image upload failed', error);
         notificationStore.addNotification('이미지 업로드 중 오류가 발생했습니다.', 'error');
       }
     }
@@ -131,7 +140,7 @@ const addImage = () => {
             if (item.type.indexOf('image') === 0) {
               const file = item.getAsFile();
               if (file) {
-                compressImage(file).then(({ blob, wasCompressed, originalSize }) => {
+                compressImage(file).then(async ({ blob, wasCompressed, originalSize }) => {
                   if (wasCompressed) {
                      const originalMB = (originalSize / (1024 * 1024)).toFixed(2);
                      notificationStore.addNotification(
@@ -140,14 +149,17 @@ const addImage = () => {
                       5000
                     );
                   }
+                  const imageId = uuidv4();
+                  await saveImageToDB(imageId, blob);
                   const src = URL.createObjectURL(blob);
+
                   if (view.state.schema.nodes.image) {
                      // We need to insert at current selection since this is async
                      // But paste handler expects synchronous return or handled handling.
                      // For async, we can insert manually.
                      const { tr } = view.state;
                      const transaction = tr.replaceSelectionWith(
-                        view.state.schema.nodes.image.create({ src })
+                        view.state.schema.nodes.image.create({ src, imageId })
                      );
                      view.dispatch(transaction);
                   }
@@ -167,7 +179,7 @@ const addImage = () => {
           if (file && file.type.indexOf('image') === 0) {
              const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY });
              
-             compressImage(file).then(({ blob, wasCompressed, originalSize }) => {
+             compressImage(file).then(async ({ blob, wasCompressed, originalSize }) => {
                 if (wasCompressed) {
                    const originalMB = (originalSize / (1024 * 1024)).toFixed(2);
                    notificationStore.addNotification(
@@ -176,10 +188,12 @@ const addImage = () => {
                     5000
                   );
                 }
+                const imageId = uuidv4();
+                await saveImageToDB(imageId, blob);
                 const src = URL.createObjectURL(blob);
                 const { schema } = view.state;
                 if (coordinates && schema.nodes.image) {
-                   view.dispatch(view.state.tr.insert(coordinates.pos, schema.nodes.image.create({ src })));
+                   view.dispatch(view.state.tr.insert(coordinates.pos, schema.nodes.image.create({ src, imageId })));
                 }
              }).catch(err => {
                 console.error('Drop compression failed', err);
@@ -197,7 +211,7 @@ const addImage = () => {
     }
   },
   onBlur: () => {
-    store.saveToLocalStorage();
+    store.saveToIndexedDB();
   },
 });
 

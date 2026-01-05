@@ -24,6 +24,18 @@ export const CustomImage = Image.extend({
           };
         },
       },
+      imageId: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-image-id'),
+        renderHTML: attributes => {
+          if (!attributes.imageId) {
+            return {};
+          }
+          return {
+            'data-image-id': attributes.imageId,
+          };
+        },
+      },
     };
   },
 
