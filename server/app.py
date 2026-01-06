@@ -5,6 +5,9 @@ ScrivAI Backend Server
 
 import os
 import shutil
+import sqlite3
+import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -16,9 +19,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 # 설정
 BASE_DIR = Path(__file__).parent
 MEDIA_DIR = BASE_DIR / "media"
+DB_PATH = BASE_DIR / "scrivai.db"
+
 ALLOWED_EXTENSIONS = {
     # 이미지
     "jpg", "jpeg", "png", "gif", "webp", "svg", "bmp",
@@ -36,11 +46,32 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 MEDIA_DIR.mkdir(exist_ok=True)
 
 
+# 데이터베이스 초기화
+def init_db():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+        conn.close()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+
+init_db()
+
+
 # FastAPI 앱 초기화
 app = FastAPI(
     title="ScrivAI Backend",
-    description="문서 편집기 미디어 관리 서버",
-    version="1.0.0"
+    description="문서 편집기 미디어 관리 및 프로젝트 저장 서버",
+    version="1.1.0"
 )
 
 
@@ -58,7 +89,7 @@ app.add_middleware(
 app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 
 
-# 응답 모델
+# 응답/요청 모델
 class UploadResponse(BaseModel):
     """파일 업로드 응답"""
     filename: str
@@ -74,6 +105,11 @@ class MediaInfo(BaseModel):
     url: str
     size: int
     created_at: str
+
+class ProjectData(BaseModel):
+    """프로젝트 데이터"""
+    id: str
+    data: dict
 
 
 # 유틸리티 함수
@@ -100,11 +136,13 @@ async def root():
     """기본 엔드포인트"""
     return {
         "message": "ScrivAI Backend Server",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "endpoints": {
             "upload": "/upload",
             "media": "/media/{filename}",
             "media_list": "/media-list",
+            "projects_save": "/projects (POST)",
+            "projects_load": "/projects/{project_id} (GET)",
             "delete": "/delete/{filename}",
             "cleanup": "/cleanup"
         }
@@ -149,10 +187,14 @@ async def upload_file(file: UploadFile = File(...)):
         with open(file_path, "wb") as f:
             f.write(content)
         
+        # URL 생성 (서버 호스트 포함 가능, 현재는 상대 경로)
+        # 클라이언트에서 처리하거나 절대 경로 필요시 수정
+        url = f"/media/{unique_filename}"
+        
         # 응답 반환
         return UploadResponse(
             filename=unique_filename,
-            url=f"/media/{unique_filename}",
+            url=url,
             size=file_size,
             uploaded_at=datetime.now().isoformat(),
             media_type=file.content_type or "application/octet-stream"
@@ -161,6 +203,7 @@ async def upload_file(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"File upload error: {e}")
         raise HTTPException(status_code=500, detail=f"파일 업로드 중 오류: {str(e)}")
 
 
@@ -250,6 +293,66 @@ async def cleanup_media():
         raise HTTPException(status_code=500, detail=f"정리 중 오류: {str(e)}")
 
 
+# --- 프로젝트 저장/불러오기 API ---
+
+@app.post("/projects")
+async def save_project(project: ProjectData):
+    """
+    프로젝트 저장
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        updated_at = datetime.now().isoformat()
+        
+        # UPSERT 구현 (SQLite 3.24+ 지원)
+        cursor.execute("""
+            INSERT INTO projects (id, data, updated_at) 
+            VALUES (?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                data=excluded.data,
+                updated_at=excluded.updated_at
+        """, (project.id, json.dumps(project.data), updated_at))
+        
+        conn.commit()
+        conn.close()
+        
+        return {"message": "Project saved successfully", "id": project.id, "updated_at": updated_at}
+    except Exception as e:
+        logger.error(f"Project save error: {e}")
+        raise HTTPException(status_code=500, detail=f"프로젝트 저장 실패: {str(e)}")
+
+
+@app.get("/projects/{project_id}")
+async def load_project(project_id: str):
+    """
+    프로젝트 불러오기
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT data, updated_at FROM projects WHERE id = ?", (project_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return {
+                "id": project_id,
+                "data": json.loads(row[0]),
+                "updated_at": row[1]
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Project not found")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Project load error: {e}")
+        raise HTTPException(status_code=500, detail=f"프로젝트 불러오기 실패: {str(e)}")
+
+
 @app.get("/health")
 async def health_check():
     """헬스 체크"""
@@ -257,7 +360,8 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "media_dir_exists": MEDIA_DIR.exists(),
-        "media_count": len(list(MEDIA_DIR.glob("*"))) if MEDIA_DIR.exists() else 0
+        "media_count": len(list(MEDIA_DIR.glob("*"))) if MEDIA_DIR.exists() else 0,
+        "db_exists": DB_PATH.exists()
     }
 
 
@@ -266,7 +370,7 @@ if __name__ == "__main__":
     
     # 서버 실행
     uvicorn.run(
-        app,
+        "app:app",  # 문자열로 앱 지정 (reload 지원을 위해)
         host="0.0.0.0",
         port=8000,
         reload=True  # 개발 환경: 파일 변경시 자동 재로드

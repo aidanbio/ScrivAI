@@ -3,8 +3,8 @@ import { ref, computed } from 'vue';
 import { useNotificationStore } from './notificationStore';
 import type { ScrivNode } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { saveItemToDB, getItemFromDB } from '../utils/idb';
-import { prepareContentForSave, restoreImagesFromDB } from '../utils/imageUtils';
+import { apiClient } from '../api/client';
+import { prepareContentForSave } from '../utils/imageUtils';
 
 export const useDocumentStore = defineStore('document', () => {
   const nodes = ref<ScrivNode[]>([]);
@@ -262,7 +262,7 @@ export const useDocumentStore = defineStore('document', () => {
 
   // ... (keeping existing code)
 
-  const saveToIndexedDB = async () => {
+  const saveProject = async () => {
     // Clone nodes to avoid mutating robust state during preparation
     // JSON parse/stringify is a quick deep clone for data objects
     const nodesCopy = JSON.parse(JSON.stringify(nodes.value));
@@ -283,51 +283,50 @@ export const useDocumentStore = defineStore('document', () => {
     processNodes(nodesCopy);
     processNodes(trunkNodesCopy);
 
-    await saveItemToDB('current_project', {
-      binder: nodesCopy,
-      trunk: trunkNodesCopy
-    });
+    try {
+      await apiClient.saveProject('current_project', {
+        binder: nodesCopy,
+        trunk: trunkNodesCopy
+      });
 
-    console.log('Project auto-saved to IndexedDB');
-    const notificationStore = useNotificationStore();
-    notificationStore.addNotification('Auto-saved successfully', 'success', 2000);
+      console.log('Project auto-saved to Server');
+      const notificationStore = useNotificationStore();
+      notificationStore.addNotification('Auto-saved successfully', 'success', 2000);
+    } catch (error) {
+      console.error('Failed to save project to Server', error);
+      const notificationStore = useNotificationStore();
+      notificationStore.addNotification('Auto-save failed', 'error');
+    }
   };
 
-  const loadFromIndexedDB = async (): Promise<boolean> => {
+  const loadProject = async (): Promise<boolean> => {
     try {
-      const project = await getItemFromDB('current_project');
+      const project = await apiClient.loadProject('current_project');
       if (project) {
         nodes.value = project.binder || [];
         trunkNodes.value = project.trunk || [];
         activeNodeId.value = null;
 
-        // Restore images (blob refs)
-        const processNodes = async (list: ScrivNode[]) => {
-          for (const node of list) {
-            if (node.body) {
-              node.body = await restoreImagesFromDB(node.body);
-            }
-            if (node.children.length > 0) {
-              await processNodes(node.children);
-            }
-          }
-        };
-
-        await processNodes(nodes.value);
-        await processNodes(trunkNodes.value);
-
-        console.log('Project loaded from IndexedDB');
+        // Restore images (blob refs) - NOT NEEDED for Server URLs
+        // But we might want to run restoreImagesFromDB if we want to migrate old IDB blobs?
+        // For now, we assume server first. 
+        // If we wanted to be fancy we could try to load from IDB if Server fails or is empty,
+        // but let's stick to the server-centric requirement.
+        
+        console.log('Project loaded from Server');
         return true;
       }
     } catch (error) {
-      console.error('Failed to load project from IndexedDB', error);
+      console.error('Failed to load project from Server', error);
+      const notificationStore = useNotificationStore();
+      notificationStore.addNotification('Failed to load project', 'error');
     }
     return false;
   };
 
   // Initial dummy data
   const init = async () => {
-    if (await loadFromIndexedDB()) return;
+    if (await loadProject()) return;
 
     const rootFolder: ScrivNode = {
       id: uuidv4(),
@@ -375,7 +374,7 @@ export const useDocumentStore = defineStore('document', () => {
     moveNode,
     exportProject,
     importProject,
-    saveToIndexedDB,
-    loadFromIndexedDB
+    saveProject,
+    loadProject
   };
 });

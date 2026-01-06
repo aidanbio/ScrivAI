@@ -1,33 +1,5 @@
-import { saveImageToDB, getImageFromDB } from './idb';
-import { v4 as uuidv4 } from 'uuid';
-
-/**
- * Restores images in HTML content by fetching Blobs from IndexedDB using data-image-id.
- */
-export const restoreImagesFromDB = async (html: string): Promise<string> => {
-  if (!html) return '';
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const images = doc.querySelectorAll('img');
-
-  const promises = Array.from(images).map(async (img) => {
-    const imageId = img.getAttribute('data-image-id');
-    if (imageId) {
-      try {
-        const blob = await getImageFromDB(imageId);
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          img.setAttribute('src', url);
-        }
-      } catch (error) {
-        console.error(`Failed to restore image ${imageId}`, error);
-      }
-    }
-  });
-
-  await Promise.all(promises);
-  return doc.body.innerHTML;
-};
+// Imports removed as they are no longer needed
+// export const restoreImagesFromDB = ... removed
 
 /**
  * Prepares HTML content for saving.
@@ -37,20 +9,11 @@ export const restoreImagesFromDB = async (html: string): Promise<string> => {
  */
 export const prepareContentForSave = (html: string): string => {
   if (!html) return '';
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const images = doc.querySelectorAll('img');
-
-  images.forEach(img => {
-    if (img.getAttribute('data-image-id')) {
-      // Clear src to save space and avoid invalid blob refs in DB
-      // We can use a placeholder or empty string
-      img.setAttribute('src', ''); 
-    }
-  });
-
-  return doc.body.innerHTML;
+  // Since we are now using server URLs, we want to persist the src attribute.
+  // We no longer need to clear it or rely solely on data-image-id for blob restoration.
+  return html;
 };
+
 
 export const compressImage = async (file: File, maxSizeMB: number = 5): Promise<{ blob: Blob, wasCompressed: boolean, originalSize: number }> => {
   const maxBytes = maxSizeMB * 1024 * 1024;

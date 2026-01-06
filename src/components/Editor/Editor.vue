@@ -20,7 +20,8 @@ import { watch, onBeforeUnmount, ref } from 'vue';
 import { useDocumentStore } from '../../stores/documentStore';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { compressImage } from '../../utils/imageUtils';
-import { saveImageToDB } from '../../utils/idb';
+// saveImageToDB removed
+import { apiClient } from '../../api/client';
 import { v4 as uuidv4 } from 'uuid';
 import type { ScrivNode } from '../../types';
 import { 
@@ -85,15 +86,19 @@ const addImage = () => {
           );
         }
 
-        const imageId = uuidv4();
-        await saveImageToDB(imageId, blob);
-        const src = URL.createObjectURL(blob);
+        // Upload to Server
+        // We need to convert Blob back to File if compressed, or just upload the blob?
+        // fetch accepts Blob in FormData.
+        const fileToUpload = new File([blob], file.name, { type: file.type });
+        const serverUrl = await apiClient.uploadImage(fileToUpload);
+        
+        const imageId = uuidv4(); // Keep generating ID for reference if needed, or just use URL
+        // We don't save to IDB anymore
         
         if (editor.value) {
-          // Use insertContent for custom attributes if setImage is strict
            editor.value.chain().focus().insertContent({
             type: 'image',
-            attrs: { src, imageId }
+            attrs: { src: serverUrl, imageId }
           }).run();
         }
       } catch (error) {
@@ -149,9 +154,11 @@ const addImage = () => {
                       5000
                     );
                   }
+                  
+                  const fileToUpload = new File([blob], file.name, { type: file.type });
+                  const serverUrl = await apiClient.uploadImage(fileToUpload);
                   const imageId = uuidv4();
-                  await saveImageToDB(imageId, blob);
-                  const src = URL.createObjectURL(blob);
+                  const src = serverUrl;
 
                   if (view.state.schema.nodes.image) {
                      // We need to insert at current selection since this is async
@@ -188,9 +195,11 @@ const addImage = () => {
                     5000
                   );
                 }
+                const fileToUpload = new File([blob], file.name, { type: file.type });
+                const serverUrl = await apiClient.uploadImage(fileToUpload);
                 const imageId = uuidv4();
-                await saveImageToDB(imageId, blob);
-                const src = URL.createObjectURL(blob);
+                const src = serverUrl;
+                
                 const { schema } = view.state;
                 if (coordinates && schema.nodes.image) {
                    view.dispatch(view.state.tr.insert(coordinates.pos, schema.nodes.image.create({ src, imageId })));
@@ -211,7 +220,7 @@ const addImage = () => {
     }
   },
   onBlur: () => {
-    store.saveToIndexedDB();
+    store.saveProject();
   },
 });
 
