@@ -15,6 +15,7 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import { FontSize } from './extensions/FontSize';
 import { LineHeight } from './extensions/LineHeight';
 import { CustomImage } from './extensions/CustomImage';
+import { ScriveningsItem } from './extensions/ScriveningsItem';
 import TableContextMenu from './TableContextMenu.vue';
 import { watch, onBeforeUnmount, ref } from 'vue';
 import { useDocumentStore } from '../../stores/documentStore';
@@ -136,6 +137,7 @@ const addImage = () => {
           class: 'custom-image',
         },
       }),
+      ScriveningsItem,
     ],
     editorProps: {
       handlePaste: (view, event, _slice) => {
@@ -214,10 +216,48 @@ const addImage = () => {
         return false; // Not handled
       }
     },
-  onUpdate: ({ editor }) => {
-    if (store.activeNodeId && props.mode === 'editor') {
-      store.updateNode(store.activeNodeId, { body: editor.getHTML() });
-    }
+    onSelectionUpdate: ({ editor }) => {
+      // Logic to determine which scrivening section is active based on cursor
+      if (props.mode === 'scrivenings') {
+        const { selection } = editor.state;
+        // Check closest scrivenings-item
+        // using view.domAtPos
+        const pos = selection.from;
+        try {
+           const domInfo = editor.view.domAtPos(pos);
+           const node = domInfo.node;
+           const element = (node as HTMLElement).closest ? (node as HTMLElement).closest('.scrivenings-item') : (node.parentElement as HTMLElement)?.closest('.scrivenings-item');
+           if (element) {
+             const id = element.getAttribute('data-id');
+             store.setScriveningActiveId(id);
+           }
+        } catch (e) {
+           // ignore
+        }
+      }
+    },
+    onUpdate: ({ editor }) => {
+      if (props.mode === 'editor') {
+        if (store.activeNodeId) {
+          store.updateNode(store.activeNodeId, { body: editor.getHTML() });
+        }
+      } else if (props.mode === 'scrivenings') {
+        // Parse the accumulated HTML to update individual nodes
+        // We need to match content back to nodes based on data-id
+        const html = editor.getHTML();
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        const items = div.querySelectorAll('.scrivenings-item');
+        
+        items.forEach((item) => {
+          const id = item.getAttribute('data-id');
+          // Update the node content
+          // Caution: we need the INNER content of the item wrapper
+          if (id) {
+             store.updateNode(id, { body: item.innerHTML });
+          }
+        });
+      }
   },
   onBlur: () => {
     store.saveProject();
@@ -249,10 +289,16 @@ const getScriveningsContent = (node: ScrivNode): string => {
 };
 
 // Watch for active node changes to update editor content
+
+// Watch for active node ID changes or mode changes
+// We watch ID instead of the deep object to avoid infinite loops during editing
 watch(
-  [() => store.activeNode, () => props.mode],
-  ([node, mode]) => {
+  [() => store.activeNodeId, () => props.mode],
+  ([id, mode]) => {
     if (!editor.value) return;
+
+    // Re-fetch activeNode from store because we are only watching ID
+    const node = store.activeNode;
 
     if (node) {
       if (mode === 'scrivenings') {
@@ -261,7 +307,8 @@ watch(
         if (editor.value.getHTML() !== content) {
           editor.value.commands.setContent(content);
         }
-        editor.value.setEditable(false);
+        editor.value.setEditable(true); // Now editable
+
       } else {
         // Unified view: Always show node's content
         if (editor.value.getHTML() !== node.body) {
@@ -275,7 +322,7 @@ watch(
       editor.value.setEditable(false);
     }
   },
-  { deep: true, immediate: true }
+  { immediate: true }
 );
 
 // Watch for active node ID changes to ensure specific handling if needed

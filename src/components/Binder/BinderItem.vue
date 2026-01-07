@@ -13,6 +13,7 @@ const isOpen = ref(true);
 const dragOverPosition = ref<'before' | 'inside' | 'after' | null>(null);
 
 const isActive = computed(() => store.activeNodeId === props.node.id);
+const isScriveningsActive = computed(() => store.scriveningActiveId === props.node.id && store.activeNodeId !== props.node.id);
 const hasChildren = computed(() => props.node.children.length > 0);
 
 const toggleOpen = () => {
@@ -115,6 +116,7 @@ const onDrop = (e: DragEvent) => {
       class="item-content" 
       :class="{ 
         active: isActive,
+        'scrivenings-active': isScriveningsActive,
         'drag-over-inside': dragOverPosition === 'inside',
         'drag-over-before': dragOverPosition === 'before',
         'drag-over-after': dragOverPosition === 'after'
@@ -178,6 +180,10 @@ const onDrop = (e: DragEvent) => {
 .item-content.active {
   background-color: #e0e0e0;
   font-weight: bold;
+}
+
+.item-content.scrivenings-active {
+  background-color: #e3f2fd; /* Light Sky Blue */
 }
 
 /* Drag and Drop Visuals */

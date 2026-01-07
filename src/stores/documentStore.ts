@@ -12,6 +12,7 @@ export const useDocumentStore = defineStore('document', () => {
   const activeNodeId = ref<string | null>(null);
   const selectedNodeId = ref<string | null>(null);
   const draggedNodeId = ref<string | null>(null);
+  const scriveningActiveId = ref<string | null>(null);
 
   // Initial dummy data
   // Initial data logic moved to bottom
@@ -114,6 +115,7 @@ export const useDocumentStore = defineStore('document', () => {
   const setActiveNode = (id: string) => {
     activeNodeId.value = id;
     selectedNodeId.value = null; // Reset selection when navigating
+    scriveningActiveId.value = null; // Reset scrivenings active sub-item
   };
 
   const setSelectedNode = (id: string | null) => {
@@ -122,6 +124,10 @@ export const useDocumentStore = defineStore('document', () => {
 
   const setDraggedNodeId = (id: string | null) => {
     draggedNodeId.value = id;
+  };
+
+  const setScriveningActiveId = (id: string | null) => {
+    scriveningActiveId.value = id;
   };
 
   const moveNode = (draggedId: string, targetId: string | null, position: 'before' | 'after' | 'inside') => {
@@ -371,10 +377,12 @@ export const useDocumentStore = defineStore('document', () => {
     setSelectedNode,
     setDraggedNodeId,
     draggedNodeId,
+    scriveningActiveId,
     moveNode,
     exportProject,
     importProject,
     saveProject,
-    loadProject
+    loadProject,
+    setScriveningActiveId
   };
 });
