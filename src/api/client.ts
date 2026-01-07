@@ -55,5 +55,28 @@ export const apiClient = {
 
     const json = await response.json();
     return json.data;
+  },
+
+  async downloadDB(): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/db/download`);
+    if (!response.ok) {
+      throw new Error(`Failed to download database: ${response.status}`);
+    }
+    return await response.blob();
+  },
+
+  async uploadDB(file: File): Promise<void> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/db/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to upload database: ${response.status} - ${errorText}`);
+    }
   }
 };

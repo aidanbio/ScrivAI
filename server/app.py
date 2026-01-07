@@ -365,6 +365,52 @@ async def health_check():
     }
 
 
+
+# --- DB 파일 다운로드/업로드 API ---
+
+@app.get("/db/download")
+async def download_db():
+    """
+    서버의 sqlite DB 파일 다운로드 (Save 버튼용)
+    """
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=404, detail="Database file not found")
+    
+    return FileResponse(
+        DB_PATH,
+        media_type='application/x-sqlite3',
+        filename="scrivai.db"
+    )
+
+
+@app.post("/db/upload")
+async def upload_db(file: UploadFile = File(...)):
+    """
+    sqlite DB 파일 업로드 및 교체 (Load 버튼용)
+    """
+    try:
+        # 백업 생성 (안전을 위해)
+        if DB_PATH.exists():
+            backup_path = DB_PATH.with_suffix(".db.bak")
+            shutil.copy2(DB_PATH, backup_path)
+        
+        # 임시 파일로 저장 후 교체
+        temp_path = DB_PATH.with_suffix(".tmp")
+        content = await file.read()
+        
+        with open(temp_path, "wb") as f:
+            f.write(content)
+            
+        # 기존 파일 교체
+        shutil.move(temp_path, DB_PATH)
+        
+        return {"message": "Database restored successfully"}
+        
+    except Exception as e:
+        logger.error(f"DB upload error: {e}")
+        raise HTTPException(status_code=500, detail=f"DB 업로드 실패: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     

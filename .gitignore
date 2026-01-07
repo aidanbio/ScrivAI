@@ -26,4 +26,5 @@ dist-ssr
 
 server/media
 server/__pycache__
-server/scrivai.db
+*.db
+*.db.bak

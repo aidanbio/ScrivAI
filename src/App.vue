@@ -1,4 +1,5 @@
 <script setup lang="ts">
+
 import { ref, computed, watch } from 'vue';
 import Binder from './components/Binder/Binder.vue';
 import Editor from './components/Editor/Editor.vue';
@@ -6,8 +7,11 @@ import Inspector from './components/Inspector/Inspector.vue';
 import Corkboard from './components/Corkboard/Corkboard.vue';
 import ToastNotification from './components/Common/ToastNotification.vue';
 import { useDocumentStore } from './stores/documentStore';
+import { apiClient } from './api/client';
+import { useNotificationStore } from './stores/notificationStore';
 
 const store = useDocumentStore();
+const notificationStore = useNotificationStore();
 const viewMode = ref<'editor' | 'corkboard' | 'scrivenings'>('editor');
 
 const activeNode = computed(() => store.activeNode);
@@ -19,39 +23,47 @@ const toggleView = (mode: 'editor' | 'corkboard' | 'scrivenings') => {
 watch(activeNode, (newNode) => {
   if (newNode) {
     // Optional: Default to Editor, or remember last view
-    // For now, let's just keep current view or maybe default to editor
-    // if viewMode logic needs adjustment.
-    // Actually, Scrivener keeps view per item often, but simplest is:
-    // Don't force switch.
   }
 });
 
-const handleExport = () => {
-  const json = store.exportProject();
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'scrivai-project.json';
-  a.click();
-  URL.revokeObjectURL(url);
+const handleExport = async () => {
+  try {
+    const blob = await apiClient.downloadDB();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'scrivai.db'; // SQLite DB file name
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    notificationStore.addNotification('Database downloaded successfully', 'success');
+  } catch (error) {
+    console.error('Failed to download database', error);
+    notificationStore.addNotification('Failed to download database', 'error');
+  }
 };
 
 const handleImport = () => {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'application/json';
-  input.onchange = (e) => {
+  input.accept = '.db,.sqlite,.sqlite3'; // Accept SQLite DB files
+  input.onchange = async (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        if (content) {
-          store.importProject(content);
+      try {
+        await apiClient.uploadDB(file);
+        notificationStore.addNotification('Database uploaded successfully', 'success');
+        
+        // Reload project to reflect changes
+        const success = await store.loadProject();
+        if (success) {
+           notificationStore.addNotification('Project reloaded from new database', 'success');
         }
-      };
-      reader.readAsText(file);
+      } catch (error) {
+        console.error('Failed to upload database', error);
+        notificationStore.addNotification('Failed to upload database', 'error');
+      }
     }
   };
   input.click();
