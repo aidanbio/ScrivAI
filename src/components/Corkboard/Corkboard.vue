@@ -71,7 +71,8 @@ const openBatchGenerateModal = () => {
 const handleNewItem = () => {
     // Determine parent ID: if activeNode is set, use it. Otherwise root.
     const parentId = activeNode.value ? activeNode.value.id : null;
-    store.addNode(parentId);
+    const newNode = store.addNode(parentId);
+    emit('node-dblclick', newNode.id);
 };
 
 const closeAIModal = () => {
@@ -103,7 +104,8 @@ const confirmAIModal = (payload: any) => {
           store.nodes.push(newNode);
       }
       
-      // Select the new node? Maybe just let it appear.
+      // Navigate to the new node
+      emit('node-dblclick', newNode.id);
   } else {
       // Existing logic for single item updates (not fully implemented in backend yet in this snippet, but handled in AIModal visually)
       // If we had logic to update keys based on payload for image/text gen:

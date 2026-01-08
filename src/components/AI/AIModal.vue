@@ -22,6 +22,13 @@ const apiKey = ref('');
 const isGenerating = ref(false);
 const errorMsg = ref('');
 
+interface LocalContextItem {
+    original: ScrivNode;
+    included: boolean;
+}
+
+const localContextItems = ref<LocalContextItem[]>([]);
+
 watch(() => props.visible, (newVal) => {
   if (newVal) {
     errorMsg.value = '';
@@ -32,7 +39,11 @@ watch(() => props.visible, (newVal) => {
       synopsisText.value = props.node.synopsis || '';
     } else if (props.mode === 'batch-generate') {
       instruction.value = '';
-      // Retain API Key if previously entered (could also use local storage)
+      // Initialize local context items
+      localContextItems.value = (props.contextNodes || []).map(node => ({
+        original: node,
+        included: true
+      }));
     }
   }
 });
@@ -53,11 +64,13 @@ const handleConfirm = async () => {
 
         isGenerating.value = true;
         try {
-            const context = props.contextNodes?.map(n => ({
-                title: n.title,
-                synopsis: n.synopsis || '',
-                body: n.body
-            })) || [];
+            const context = localContextItems.value
+                .filter(item => item.included)
+                .map(item => ({
+                    title: item.original.title,
+                    synopsis: item.original.synopsis || '',
+                    body: item.original.body
+                }));
 
             const result = await generateItemFromContext(apiKey.value, context, instruction.value);
             emit('confirm', result);
@@ -94,6 +107,28 @@ const handleFileUpload = (event: Event) => {
     }
 }
 
+const toggleInclude = (index: number) => {
+    if (localContextItems.value[index]) {
+        localContextItems.value[index].included = !localContextItems.value[index].included;
+    }
+};
+
+const moveItem = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index > 0) {
+        const item = localContextItems.value[index];
+        if (item) {
+            localContextItems.value.splice(index, 1);
+            localContextItems.value.splice(index - 1, 0, item);
+        }
+    } else if (direction === 'down' && index < localContextItems.value.length - 1) {
+        const item = localContextItems.value[index];
+        if (item) {
+            localContextItems.value.splice(index, 1);
+            localContextItems.value.splice(index + 1, 0, item);
+        }
+    }
+};
+
 </script>
 
 <template>
@@ -127,11 +162,30 @@ const handleFileUpload = (event: Event) => {
          <div class="context-list">
              <label>Context Items (Active View):</label>
              <div class="items-preview">
-                 <div v-for="item in contextNodes" :key="item.id" class="context-item">
-                     <strong>{{ item.title }}</strong>
-                     <p>{{ item.synopsis || '(No synopsis)' }}</p>
+                 <div 
+                    v-for="(item, index) in localContextItems" 
+                    :key="item.original.id" 
+                    class="context-item"
+                    :class="{ 'excluded': !item.included }"
+                 >
+                     <div class="item-controls">
+                        <input 
+                            type="checkbox" 
+                            :checked="item.included" 
+                            @change="toggleInclude(index)"
+                            title="Include/Exclude"
+                        />
+                     </div>
+                     <div class="item-content">
+                         <strong>{{ item.original.title }}</strong>
+                         <p>{{ item.original.synopsis || '(No synopsis)' }}</p>
+                     </div>
+                     <div class="item-reorder">
+                         <button @click="moveItem(index, 'up')" :disabled="index === 0" title="Move Up">↑</button>
+                         <button @click="moveItem(index, 'down')" :disabled="index === localContextItems.length - 1" title="Move Down">↓</button>
+                     </div>
                  </div>
-                 <div v-if="!contextNodes || contextNodes.length === 0" class="no-context">
+                 <div v-if="localContextItems.length === 0" class="no-context">
                      No items in current view. AI will start fresh.
                  </div>
              </div>
@@ -278,24 +332,50 @@ textarea {
 .context-item {
     padding: 6px;
     border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background-color 0.2s;
 }
 
-.context-item:last-child {
-    border-bottom: none;
+.context-item.excluded {
+    background-color: #e0e0e0;
+    opacity: 0.6;
 }
 
-.context-item strong {
-    font-size: 0.9em;
-    display: block;
+.item-controls {
+    display: flex;
+    align-items: center;
 }
 
-.context-item p {
-    font-size: 0.8em;
-    color: #666;
-    margin: 2px 0 0;
-    white-space: nowrap;
+.item-content {
+    flex: 1;
     overflow: hidden;
-    text-overflow: ellipsis;
+}
+
+.item-reorder {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.item-reorder button {
+    padding: 0 4px;
+    font-size: 0.7rem;
+    line-height: 1;
+    height: 16px;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    cursor: pointer;
+}
+
+.item-reorder button:hover:not(:disabled) {
+    background: #e0e0e0;
+}
+
+.item-reorder button:disabled {
+    opacity: 0.3;
+    cursor: default;
 }
 
 .no-context {

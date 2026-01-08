@@ -39,7 +39,7 @@ export const useDocumentStore = defineStore('document', () => {
     return undefined;
   };
 
-  const addNode = (parentId: string | null) => {
+  const addNode = (parentId: string | null): ScrivNode => {
     const newNode: ScrivNode = {
       id: uuidv4(),
       title: 'New Item',
@@ -64,6 +64,7 @@ export const useDocumentStore = defineStore('document', () => {
     }
     
     activeNodeId.value = newNode.id;
+    return newNode;
   };
 
   const addTrunkNode = (file: File, fileData: string) => {
