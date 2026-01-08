@@ -69,6 +69,11 @@ const handleImport = () => {
   input.click();
 };
 
+const handleNodeDblClick = (id: string) => {
+  store.setActiveNode(id);
+  viewMode.value = 'editor';
+};
+
 </script>
 
 <template>
@@ -115,7 +120,7 @@ const handleImport = () => {
       
       <div class="content-area">
         <Editor v-if="viewMode === 'editor' || viewMode === 'scrivenings'" :mode="viewMode" />
-        <Corkboard v-else />
+        <Corkboard v-else @node-dblclick="handleNodeDblClick" />
       </div>
     </main>
     

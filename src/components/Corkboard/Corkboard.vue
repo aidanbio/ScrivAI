@@ -7,6 +7,10 @@ import type { ScrivNode } from '../../types';
 
 const store = useDocumentStore();
 
+const emit = defineEmits<{
+  (e: 'node-dblclick', id: string): void
+}>();
+
 const activeNode = computed(() => store.activeNode);
 const children = computed(() => activeNode.value?.children || []);
 
@@ -77,6 +81,10 @@ const onGlobalClick = () => {
   }
 };
 
+const handleCardDoubleClick = (id: string) => {
+  emit('node-dblclick', id);
+};
+
 onMounted(() => {
   window.addEventListener('click', onGlobalClick);
 });
@@ -97,6 +105,7 @@ onUnmounted(() => {
         :is-selected="store.selectedNodeId === child.id"
         @context-menu="handleCardContextMenu"
         @click.stop="handleCardClick(child.id)"
+        @dblclick.stop="handleCardDoubleClick(child.id)"
       />
     </div>
     <div v-else class="empty-state">
