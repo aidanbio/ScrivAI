@@ -4,6 +4,7 @@ import { useDocumentStore } from '../../stores/documentStore';
 import IndexCard from './IndexCard.vue';
 import AIModal from '../AI/AIModal.vue';
 import type { ScrivNode } from '../../types';
+import { v4 as uuidv4 } from 'uuid';
 
 const store = useDocumentStore();
 
@@ -25,8 +26,9 @@ const contextMenu = ref({
 // AI Modal State
 const aiModal = ref({
   visible: false,
-  mode: 'text-to-image' as 'text-to-image' | 'image-to-text',
-  node: null as ScrivNode | null
+  mode: 'text-to-image' as 'text-to-image' | 'image-to-text' | 'batch-generate',
+  node: null as ScrivNode | null,
+  contextNodes: [] as ScrivNode[]
 });
 
 const handleCardContextMenu = ({ event, nodeId }: { event: MouseEvent, nodeId: string }) => {
@@ -50,20 +52,66 @@ const openAIModal = (mode: 'text-to-image' | 'image-to-text') => {
     aiModal.value = {
       visible: true,
       mode: mode,
-      node: node
+      node: node,
+      contextNodes: []
     };
   }
   closeContextMenu();
 };
 
+const openBatchGenerateModal = () => {
+    aiModal.value = {
+        visible: true,
+        mode: 'batch-generate',
+        node: null,
+        contextNodes: children.value // Pass current view items as context
+    };
+};
+
+const handleNewItem = () => {
+    // Determine parent ID: if activeNode is set, use it. Otherwise root.
+    const parentId = activeNode.value ? activeNode.value.id : null;
+    store.addNode(parentId);
+};
+
 const closeAIModal = () => {
   aiModal.value.visible = false;
   aiModal.value.node = null;
+  aiModal.value.contextNodes = [];
 };
 
 const confirmAIModal = (payload: any) => {
   console.log('AI Generation Confirmed:', payload);
-  // Future implementation: call AI service here
+  
+  if (aiModal.value.mode === 'batch-generate') {
+      // Create new node with generated content
+      const parentId = activeNode.value ? activeNode.value.id : null;
+      
+      const newNode: ScrivNode = {
+        id: uuidv4(),
+        title: payload.title || 'AI Generated Item',
+        body: payload.body || '',
+        synopsis: payload.synopsis || '',
+        status: 'Draft',
+        children: [],
+        parentId: parentId,
+      };
+
+      if (activeNode.value) {
+          activeNode.value.children.push(newNode);
+      } else {
+          store.nodes.push(newNode);
+      }
+      
+      // Select the new node? Maybe just let it appear.
+  } else {
+      // Existing logic for single item updates (not fully implemented in backend yet in this snippet, but handled in AIModal visually)
+      // If we had logic to update keys based on payload for image/text gen:
+      // const node = aiModal.value.node;
+      // if (node && payload.synopsis) store.updateNode(node.id, { synopsis: payload.synopsis });
+      // if (node && payload.instruction) ... (handled in AIModal for image generation mostly)
+  }
+  
   closeAIModal();
 };
 
@@ -97,7 +145,7 @@ onUnmounted(() => {
 
 <template>
   <div class="corkboard" @click="handleBackgroundClick">
-    <div v-if="children.length > 0" class="cards-grid">
+    <div class="cards-grid">
       <IndexCard 
         v-for="child in children" 
         :key="child.id" 
@@ -107,9 +155,21 @@ onUnmounted(() => {
         @click.stop="handleCardClick(child.id)"
         @dblclick.stop="handleCardDoubleClick(child.id)"
       />
+      
+      <!-- Action Buttons -->
+      <div class="action-card new-card" @click.stop="handleNewItem">
+          <div class="icon">+</div>
+          <div class="label">New</div>
+      </div>
+      
+      <div class="action-card generate-card" @click.stop="openBatchGenerateModal">
+          <div class="icon">✨</div>
+          <div class="label">Generate...</div>
+      </div>
     </div>
-    <div v-else class="empty-state">
-      <p>No sub-documents to display.</p>
+    
+    <div v-if="children.length === 0" class="empty-state-hint">
+       <!-- Removed main empty state block to allow buttons to be always visible at top/start -->
     </div>
 
     <!-- Context Menu -->
@@ -132,6 +192,7 @@ onUnmounted(() => {
       :visible="aiModal.visible"
       :mode="aiModal.mode"
       :node="aiModal.node"
+      :context-nodes="aiModal.contextNodes"
       @close="closeAIModal"
       @confirm="confirmAIModal"
     />
@@ -155,10 +216,48 @@ onUnmounted(() => {
   align-content: flex-start;
 }
 
-.empty-state {
-  text-align: center;
-  color: #888;
-  margin-top: 50px;
+
+
+.action-card {
+    width: 200px; /* Same as IndexCard usually */
+    height: 140px;
+    background: rgba(255, 255, 255, 0.5);
+    border: 2px dashed #ccc;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #666;
+}
+
+.action-card:hover {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: #999;
+    color: #333;
+    transform: translateY(-2px);
+}
+
+.action-card .icon {
+    font-size: 2rem;
+    margin-bottom: 5px;
+}
+
+.action-card .label {
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.new-card:hover {
+    border-color: #4CAF50;
+    color: #4CAF50;
+}
+
+.generate-card:hover {
+    border-color: #9C27B0;
+    color: #9C27B0; /* AI purple */
 }
 
 .context-menu {

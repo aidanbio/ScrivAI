@@ -2,11 +2,13 @@
 import { ref, watch, computed } from 'vue';
 import type { ScrivNode } from '../../types';
 import { useDocumentStore } from '../../stores/documentStore';
+import { generateItemFromContext } from '../../services/geminiService';
 
 const props = defineProps<{
   visible: boolean;
-  mode: 'text-to-image' | 'image-to-text';
+  mode: 'text-to-image' | 'image-to-text' | 'batch-generate';
   node: ScrivNode | null;
+  contextNodes?: ScrivNode[]; // For batch-generate
 }>();
 
 const emit = defineEmits<{(e: 'close'): void; (e: 'confirm', payload: any): void}>();
@@ -16,23 +18,57 @@ const store = useDocumentStore();
 const instruction = ref('');
 const synopsisText = ref('');
 const imagePreview = ref<string | null>(null);
+const apiKey = ref('');
+const isGenerating = ref(false);
+const errorMsg = ref('');
 
 watch(() => props.visible, (newVal) => {
-  if (newVal && props.node) {
-    if (props.mode === 'image-to-text') {
+  if (newVal) {
+    errorMsg.value = '';
+    if (props.mode === 'image-to-text' && props.node) {
       instruction.value = '';
       imagePreview.value = props.node.synopsisImage || null;
-    } else {
+    } else if (props.mode === 'text-to-image' && props.node) {
       synopsisText.value = props.node.synopsis || '';
+    } else if (props.mode === 'batch-generate') {
+      instruction.value = '';
+      // Retain API Key if previously entered (could also use local storage)
     }
   }
 });
 
 const title = computed(() => {
-  return props.mode === 'image-to-text' ? 'Generate Text using Image' : 'Generate Image';
+  if (props.mode === 'image-to-text') return 'Generate Text using Image';
+  if (props.mode === 'text-to-image') return 'Generate Image';
+  return 'Generate New Item with AI';
 });
 
-const handleConfirm = () => {
+const handleConfirm = async () => {
+    errorMsg.value = '';
+    if (props.mode === 'batch-generate') {
+        if (!apiKey.value.trim()) {
+            errorMsg.value = 'Please enter a Gemini API Key.';
+            return;
+        }
+
+        isGenerating.value = true;
+        try {
+            const context = props.contextNodes?.map(n => ({
+                title: n.title,
+                synopsis: n.synopsis || '',
+                body: n.body
+            })) || [];
+
+            const result = await generateItemFromContext(apiKey.value, context, instruction.value);
+            emit('confirm', result);
+        } catch (e: any) {
+            errorMsg.value = e.message || 'Failed to generate content.';
+        } finally {
+            isGenerating.value = false;
+        }
+        return;
+    }
+
     const payload = props.mode === 'image-to-text' ? { instruction: instruction.value } : { synopsis: synopsisText.value };
     emit('confirm', payload);
 };
@@ -62,7 +98,7 @@ const handleFileUpload = (event: Event) => {
 
 <template>
   <div v-if="visible" class="modal-overlay" @click.stop>
-    <div class="modal-content">
+    <div class="modal-content" :class="{ 'wide-modal': mode === 'batch-generate' }">
       <h2>{{ title }}</h2>
       
       <div v-if="mode === 'image-to-text'" class="content-body">
@@ -79,7 +115,7 @@ const handleFileUpload = (event: Event) => {
         </div>
       </div>
 
-      <div v-else class="content-body">
+      <div v-else-if="mode === 'text-to-image'" class="content-body">
          <div class="input-area">
             <label>Synopsis:</label>
             <textarea v-model="synopsisText" readonly class="readonly-textarea"></textarea>
@@ -87,9 +123,35 @@ const handleFileUpload = (event: Event) => {
         </div>
       </div>
 
+      <div v-else-if="mode === 'batch-generate'" class="content-body">
+         <div class="context-list">
+             <label>Context Items (Active View):</label>
+             <div class="items-preview">
+                 <div v-for="item in contextNodes" :key="item.id" class="context-item">
+                     <strong>{{ item.title }}</strong>
+                     <p>{{ item.synopsis || '(No synopsis)' }}</p>
+                 </div>
+                 <div v-if="!contextNodes || contextNodes.length === 0" class="no-context">
+                     No items in current view. AI will start fresh.
+                 </div>
+             </div>
+         </div>
+         <div class="input-area">
+             <label>Gemini API Key:</label>
+             <input type="password" v-model="apiKey" placeholder="Enter your Gemini API Key" class="api-input" />
+         </div>
+         <div class="input-area">
+            <label>Instructions for New Item:</label>
+            <textarea v-model="instruction" placeholder="E.g., 'Create a plot twist involving the main character...'"></textarea>
+         </div>
+         <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
+      </div>
+
       <div class="modal-actions">
-        <button @click="handleCancel" class="btn-cancel">Cancel</button>
-        <button @click="handleConfirm" class="btn-confirm">Confirm</button>
+        <button @click="handleCancel" class="btn-cancel" :disabled="isGenerating">Cancel</button>
+        <button @click="handleConfirm" class="btn-confirm" :disabled="isGenerating">
+            {{ isGenerating ? 'Generating...' : 'Confirm' }}
+        </button>
       </div>
     </div>
   </div>
@@ -116,6 +178,13 @@ const handleFileUpload = (event: Event) => {
   width: 500px;
   max-width: 90%;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.wide-modal {
+    width: 600px;
 }
 
 h2 {
@@ -127,6 +196,8 @@ h2 {
 
 .content-body {
     margin-bottom: 20px;
+    overflow-y: auto;
+    flex: 1;
 }
 
 .image-area {
@@ -150,6 +221,7 @@ h2 {
 .input-area {
     display: flex;
     flex-direction: column;
+    margin-bottom: 12px;
 }
 
 .input-area label {
@@ -167,6 +239,12 @@ textarea {
     resize: vertical;
 }
 
+.api-input {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
 .readonly-textarea {
     background-color: #f9f9f9;
     color: #555;
@@ -178,10 +256,66 @@ textarea {
     margin-top: 5px;
 }
 
+.context-list {
+    margin-bottom: 15px;
+}
+
+.context-list label {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.items-preview {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    padding: 8px;
+    background: #f9f9f9;
+}
+
+.context-item {
+    padding: 6px;
+    border-bottom: 1px solid #eee;
+}
+
+.context-item:last-child {
+    border-bottom: none;
+}
+
+.context-item strong {
+    font-size: 0.9em;
+    display: block;
+}
+
+.context-item p {
+    font-size: 0.8em;
+    color: #666;
+    margin: 2px 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.no-context {
+    color: #999;
+    font-style: italic;
+    text-align: center;
+    padding: 10px;
+}
+
+.error-msg {
+    color: red;
+    font-size: 0.9em;
+    margin-top: 10px;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  margin-top: auto;
 }
 
 button {
@@ -204,5 +338,10 @@ button {
 
 .btn-confirm:hover {
   background-color: #0056b3;
+}
+
+.btn-confirm:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
 }
 </style>
